@@ -7,6 +7,6 @@ Provides an explorer to create ESP elements for any item(s) in the workspace
 
 ### This script works universally on any roblox(or Lua) game.
 
-## loadstring(game:HttpGet("https://raw.githubusercontent.com/JakeHukari/Sp3arParvus/refs/heads/main/any_item_esp.lua", true))()
+## loadstring(game:HttpGet("https://raw.githubusercontent.com/JakeHukari/Any-Item-ESP/refs/heads/main/any_item_esp.lua", true))()
 
 **For educational and development purposes only 😉**
