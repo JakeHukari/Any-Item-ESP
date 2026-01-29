@@ -4,7 +4,6 @@ local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 local UserInputService = game:GetService("UserInputService")
 
--- Global State for Cleanup
 local ALIVE = true
 
 -- Configuration
@@ -13,13 +12,11 @@ local PLAYER_GUI = PLAYER:WaitForChild("PlayerGui")
 local FONT = Enum.Font.SourceSans
 local FONT_BOLD = Enum.Font.SourceSansBold
 
--- Single Instance Check
 if PLAYER_GUI:FindFirstChild("Any_Item_ESP") then
 	PLAYER_GUI.Any_Item_ESP:Destroy()
 	task.wait(0.1) -- Allow old threads to cleanup
 end
 
--- Settings Defaults
 local SETTINGS = {
 	MaxHighlights = 50,
 	-- RainbowMode = true, -- REMOVED GLOBAL
@@ -42,7 +39,7 @@ local isRendering = false
 local renderRequest = 0
 local searchDebounceToken = 0
 
--- Connection Manager (fixes memory leaks)
+-- Connection Manager (fixes that humongous memory leak)
 local connections = {}
 local function addConnection(conn)
 	table.insert(connections, conn)
