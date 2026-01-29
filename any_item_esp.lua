@@ -46,10 +46,10 @@ local function addConnection(conn)
 	return conn
 end
 
--- Centralized Drag Manager
+-- Centralized Drag Manager because why not
 local activeDrag = nil -- { callback, onEnd }
 
--- Icons
+-- Icons (these suck, change them soon)
 local ICONS = {
 	Folder = "📁",
 	Model = "📦",
@@ -63,7 +63,7 @@ local ICONS = {
 	Settings = "⚙️"
 }
 
--- Cleanup Function
+-- Cleanup (unload script) Function
 local function UnloadScript(screenGui)
 	ALIVE = false
 	if screenGui then screenGui:Destroy() end
@@ -79,7 +79,7 @@ local function UnloadScript(screenGui)
 		if conn then conn:Disconnect() end
 	end
 	
-	-- Cleanup ALL tracked connections (fixes memory leak)
+	-- Cleanup ALL tracked connections (fixes the other memory leak)
 	for _, conn in ipairs(connections) do
 		if conn and conn.Connected then conn:Disconnect() end
 	end
