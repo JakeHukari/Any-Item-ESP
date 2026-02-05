@@ -19,7 +19,7 @@ end
 
 local SETTINGS = {
 	MaxHighlights = 50,
-	-- RainbowMode = true, -- REMOVED GLOBAL (its still inside of individual item settings if u want esp)
+	-- RainbowMode = true, -- REMOVED GLOBAL (its still inside of individual item settings if u want rainbow esp)
 	ShowNames = true,
 	MaxTotalObjects = 1000
 }
