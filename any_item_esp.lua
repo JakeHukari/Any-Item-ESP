@@ -69,15 +69,15 @@ local ICONS = {
 
 -- Color Presets
 local COLOR_PRESETS = {
-	{Name = "Red", Color = Color3.fromRGB(231, 76, 60)},
-	{Name = "Green", Color = Color3.fromRGB(46, 204, 113)},
-	{Name = "Blue", Color = Color3.fromRGB(52, 152, 219)},
-	{Name = "Cyan", Color = Color3.fromRGB(22, 160, 133)},
-	{Name = "Yellow", Color = Color3.fromRGB(241, 196, 15)},
-	{Name = "Orange", Color = Color3.fromRGB(230, 126, 34)},
-	{Name = "Magenta", Color = Color3.fromRGB(155, 89, 182)},
-	{Name = "Pink", Color = Color3.fromRGB(255, 105, 180)},
-	{Name = "White", Color = Color3.fromRGB(236, 240, 241)}
+	{Name = "Red", Color = Color3.fromRGB(255, 0, 0)},
+	{Name = "Green", Color = Color3.fromRGB(0, 255, 0)},
+	{Name = "Blue", Color = Color3.fromRGB(0, 0, 255)},
+	{Name = "Cyan", Color = Color3.fromRGB(0, 255, 255)},
+	{Name = "Yellow", Color = Color3.fromRGB(255, 255, 0)},
+	{Name = "Orange", Color = Color3.fromRGB(255, 165, 0)},
+	{Name = "Magenta", Color = Color3.fromRGB(255, 0, 255)},
+	{Name = "Pink", Color = Color3.fromRGB(255, 192, 203)},
+	{Name = "White", Color = Color3.fromRGB(255, 255, 255)}
 }
 
 -- Cleanup Function
@@ -134,7 +134,8 @@ end
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.new(0, 340, 0, 480)
-mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
