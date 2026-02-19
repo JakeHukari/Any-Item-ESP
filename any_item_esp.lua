@@ -4,6 +4,7 @@ local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 local UserInputService = game:GetService("UserInputService")
 
+-- Global State for Cleanup
 local ALIVE = true
 
 -- Configuration
@@ -12,14 +13,16 @@ local PLAYER_GUI = PLAYER:WaitForChild("PlayerGui")
 local FONT = Enum.Font.SourceSans
 local FONT_BOLD = Enum.Font.SourceSansBold
 
+-- Single Instance Check
 if PLAYER_GUI:FindFirstChild("Any_Item_ESP") then
 	PLAYER_GUI.Any_Item_ESP:Destroy()
 	task.wait(0.1) -- Allow old threads to cleanup
 end
 
+-- Settings Defaults
 local SETTINGS = {
 	MaxHighlights = 50,
-	-- RainbowMode = true, -- REMOVED GLOBAL (its still inside of individual item settings if u want rainbow esp)
+	-- RainbowMode = true, -- REMOVED GLOBAL
 	ShowNames = true,
 	MaxTotalObjects = 1000
 }
@@ -39,17 +42,17 @@ local isRendering = false
 local renderRequest = 0
 local searchDebounceToken = 0
 
--- Connection Manager (fixes that humongous memory leak)
+-- Connection Manager (fixes memory leaks)
 local connections = {}
 local function addConnection(conn)
 	table.insert(connections, conn)
 	return conn
 end
 
--- Centralized Drag Manager because why not
+-- Centralized Drag Manager
 local activeDrag = nil -- { callback, onEnd }
 
--- Icons (these suck, change them soon)
+-- Icons
 local ICONS = {
 	Folder = "📁",
 	Model = "📦",
@@ -63,7 +66,20 @@ local ICONS = {
 	Settings = "⚙️"
 }
 
--- Cleanup (unload script) Function
+-- Color Presets
+local COLOR_PRESETS = {
+	{Name = "Red", Color = Color3.fromRGB(231, 76, 60)},
+	{Name = "Green", Color = Color3.fromRGB(46, 204, 113)},
+	{Name = "Blue", Color = Color3.fromRGB(52, 152, 219)},
+	{Name = "Cyan", Color = Color3.fromRGB(22, 160, 133)},
+	{Name = "Yellow", Color = Color3.fromRGB(241, 196, 15)},
+	{Name = "Orange", Color = Color3.fromRGB(230, 126, 34)},
+	{Name = "Magenta", Color = Color3.fromRGB(155, 89, 182)},
+	{Name = "Pink", Color = Color3.fromRGB(255, 105, 180)},
+	{Name = "White", Color = Color3.fromRGB(236, 240, 241)}
+}
+
+-- Cleanup Function
 local function UnloadScript(screenGui)
 	ALIVE = false
 	if screenGui then screenGui:Destroy() end
@@ -79,7 +95,7 @@ local function UnloadScript(screenGui)
 		if conn then conn:Disconnect() end
 	end
 	
-	-- Cleanup ALL tracked connections (fixes the other memory leak)
+	-- Cleanup ALL tracked connections (fixes memory leak)
 	for _, conn in ipairs(connections) do
 		if conn and conn.Connected then conn:Disconnect() end
 	end
@@ -448,6 +464,50 @@ rainbowToggleBtn.MouseButton1Click:Connect(function()
 	s.Rainbow = not s.Rainbow
 	updateSelectionUI()
 end)
+
+-- Color Presets UI
+local presetLabel = Instance.new("TextLabel")
+presetLabel.Size = UDim2.new(1, -20, 0, 20)
+presetLabel.Position = UDim2.new(0, 10, 0, 175)
+presetLabel.BackgroundTransparency = 1
+presetLabel.Text = "Color Presets"
+presetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+presetLabel.Font = FONT_BOLD
+presetLabel.TextSize = 14
+presetLabel.TextXAlignment = Enum.TextXAlignment.Left
+presetLabel.Parent = selectionSettingsFrame
+
+local presetContainer = Instance.new("Frame")
+presetContainer.Size = UDim2.new(1, -20, 0, 100)
+presetContainer.Position = UDim2.new(0, 10, 0, 200)
+presetContainer.BackgroundTransparency = 1
+presetContainer.Parent = selectionSettingsFrame
+
+local presetGrid = Instance.new("UIGridLayout")
+presetGrid.CellSize = UDim2.new(0, 32, 0, 32)
+presetGrid.CellPadding = UDim2.new(0, 6, 0, 6)
+presetGrid.Parent = presetContainer
+
+for _, preset in ipairs(COLOR_PRESETS) do
+	local btn = Instance.new("TextButton")
+	btn.Name = preset.Name
+	btn.Text = ""
+	btn.BackgroundColor3 = preset.Color
+	btn.BorderSizePixel = 0
+	btn.Parent = presetContainer
+	addCorners(btn, 4)
+	addStroke(btn, Color3.fromRGB(50, 50, 50), 1)
+
+	btn.MouseButton1Click:Connect(function()
+		if not currentSelection then return end
+		local s = targetSettings[currentSelection]
+		if not s then return end
+
+		s.Color = preset.Color
+		s.Rainbow = false
+		updateSelectionUI()
+	end)
+end
 
 local settingsListLayout = Instance.new("UIListLayout")
 settingsListLayout.Parent = settingsFrame
