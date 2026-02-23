@@ -14,11 +14,16 @@ local PLAYER_GUI = PLAYER:WaitForChild("PlayerGui")
 local FONT = Enum.Font.SourceSans
 local FONT_BOLD = Enum.Font.SourceSansBold
 
--- Single Instance Check
-if PLAYER_GUI:FindFirstChild("Any_Item_ESP") then
-	PLAYER_GUI.Any_Item_ESP:Destroy()
-	task.wait(0.1) -- Allow old threads to cleanup
+-- Prevent duplicate
+local globalEnv = getgenv and getgenv() or _G
+if rawget(globalEnv, "AnyItemESP") then
+	return warn("[Any_Item_ESP] Already loaded! Please close the existing GUI first.")
 end
+
+-- Init global
+globalEnv.AnyItemESP = {
+	Active = true,
+}
 
 -- Settings Defaults
 local SETTINGS = {
@@ -31,7 +36,7 @@ local SETTINGS = {
 -- Game-Specific Templates (PlaceId based)
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- Enter game ID
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- Enter path to object
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- Enter path to object(s)
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0)}
 	}
 	-- Add more game templates here
