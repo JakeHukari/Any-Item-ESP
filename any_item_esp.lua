@@ -32,7 +32,7 @@ local SETTINGS = {
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- Enter game ID
 		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- Enter path to object
-		{Path = "ChestsFolder", Color = Color3.fromRGB(255, 255, 0)}
+		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0)}
 	}
 	-- Add more game templates here
 }
@@ -166,7 +166,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "Title"
 titleLabel.Size = UDim2.new(1, -70, 1, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "  🔍 Explorer"
+titleLabel.Text = "  🔍 Any-Item-ESP"
 titleLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Font = FONT_BOLD
