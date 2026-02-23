@@ -28,6 +28,16 @@ local SETTINGS = {
 	MaxTotalObjects = 1000
 }
 
+-- Game-Specific Templates (PlaceId based)
+local GAME_TEMPLATES = {
+	["2474168535"] = { -- Enter game ID
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- Enter path to object
+		{Path = "ChestsFolder", Color = Color3.fromRGB(255, 255, 0)}
+	}
+	-- Add more game templates here
+}
+
+
 
 -- State
 local rootDirectory = Workspace
@@ -1234,5 +1244,27 @@ task.spawn(function()
 	end
 end)
 
+-- Template Application Engine
+local function ApplyTemplate()
+	local id = tostring(game.PlaceId)
+	local template = GAME_TEMPLATES[id]
+	if not template then return end
+	
+	task.spawn(function()
+		for _, entry in ipairs(template) do
+			local target = Workspace:WaitForChild(entry.Path, 5)
+			if target then
+				-- Preset the color before toggling
+				targetSettings[target] = {
+					Color = entry.Color,
+					Rainbow = false
+				}
+				toggleEsp(target, true)
+			end
+		end
+	end)
+end
+
+ApplyTemplate()
 refreshTree()
 updateStatusBar()
