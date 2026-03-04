@@ -653,6 +653,7 @@ local function switchTab(tab)
 		searchBox.Visible = true
 		activeScroll.Visible = false
 		selectionSettingsFrame.Visible = false
+		refreshTree()
 		updateStatusBar()
 	else
 		tabExplorer.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
@@ -913,7 +914,7 @@ local function getRowFromPool()
 	iconLabel.Parent = row
 
 	local nameBtn = Instance.new("TextButton")
-	nameBtn.Name = "Name"
+	nameBtn.Name = "ItemName"
 	nameBtn.BackgroundTransparency = 1
 	nameBtn.TextColor3 = Color3.fromRGB(204, 204, 204)
 	nameBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -999,30 +1000,30 @@ local function updateViewport()
 			local isContainer = inst:IsA("Folder") or inst:IsA("Model")
 			local hasChildren = #inst:GetChildren() > 0
 
-			local expandBtn = row.Expand
-			expandBtn.Position = UDim2.new(0, padding, 0, 0)
-			if isContainer and hasChildren then
-				expandBtn.Text = expandedNodes[inst] and "v" or ">"
-			else
-				expandBtn.Text = ""
+			local expandBtn = row:FindFirstChild("Expand")
+			if expandBtn then
+				expandBtn.Position = UDim2.new(0, padding, 0, 0)
+				if isContainer and hasChildren then
+					expandBtn.Text = expandedNodes[inst] and "v" or ">"
+				else
+					expandBtn.Text = ""
+				end
 			end
 
-			-- Clear old connections (HACKy but necessary for reuse)
-			-- In a real scenario, we'd use a more robust signal management
-			-- For this task, we'll overwrite the MouseButton1Click by using a proxy
-			-- OR just use one connection that looks up the current index's data.
-			-- Let's use the latter for better performance.
+			local iconLabel = row:FindFirstChild("Icon")
+			if iconLabel then
+				iconLabel.Position = UDim2.new(0, padding + 20, 0, 0)
+				iconLabel.Text = getIcon(inst)
+			end
 
-			local iconLabel = row.Icon
-			iconLabel.Position = UDim2.new(0, padding + 20, 0, 0)
-			iconLabel.Text = getIcon(inst)
+			local nameBtn = row:FindFirstChild("ItemName")
+			if nameBtn then
+				nameBtn.Size = UDim2.new(1, -(padding + 80), 1, 0)
+				nameBtn.Position = UDim2.new(0, padding + 40, 0, 0)
+				nameBtn.Text = inst.Name
+			end
 
-			local nameBtn = row.Name
-			nameBtn.Size = UDim2.new(1, -(padding + 80), 1, 0)
-			nameBtn.Position = UDim2.new(0, padding + 40, 0, 0)
-			nameBtn.Text = inst.Name
-
-			local espBtn = row.EspToggle
+			local espBtn = row:FindFirstChild("EspToggle")
 			local isActive = getEspState(inst)
 			espBtn.Text = isActive and ICONS.EyeOn or ICONS.EyeOff
 
@@ -1355,5 +1356,6 @@ local function ApplyTemplate()
 end
 
 ApplyTemplate()
+task.wait(0.2)
 refreshTree()
 updateStatusBar()
