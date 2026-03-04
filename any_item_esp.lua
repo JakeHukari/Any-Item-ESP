@@ -50,7 +50,7 @@ local expandedNodes = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean
 local espTargets = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean } (Manual Toggles)
 local targetSettings = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Color = Color3, Rainbow = boolean } }
 local watchedFolders = setmetatable({}, {__mode = "k"}) -- { [Instance] = Connection } (Folder Watch)
-local espObjects = setmetatable({}, {__mode = "k"}) -- { [Instance] = {GUI, Highlight, Instance, Source} }
+local espObjects = setmetatable({}, {__mode = "k"}) -- { [Instance] = {GUI, Highlight, Source, Root} }
 local espObjectCount = 0
 local activeHighlights = {} -- List of instances with active Highlights
 local searchText = ""
@@ -297,10 +297,6 @@ explorerScroll.ScrollBarThickness = 5
 explorerScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
 explorerScroll.Parent = contentArea
 
-local explorerListLayout = Instance.new("UIListLayout")
-explorerListLayout.Parent = explorerScroll
-explorerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-explorerListLayout.Padding = UDim.new(0, 2)
 
 -- Active List
 local activeScroll = Instance.new("ScrollingFrame")
@@ -645,6 +641,7 @@ end)
 
 
 -- Navigation Logic
+local refreshActiveList, refreshTree
 
 local function switchTab(tab)
 	currentTab = tab
@@ -976,6 +973,7 @@ local activeRows = {} -- { [index] = Frame }
 local function updateViewport()
 	if not ALIVE then return end
 	local viewHeight = explorerScroll.AbsoluteSize.Y
+	if viewHeight == 0 then viewHeight = 400 end -- Default to a reasonable height if not yet rendered
 	local scrollPos = explorerScroll.CanvasPosition.Y
 	local startIdx = math.floor(scrollPos / 20) + 1
 	local endIdx = math.ceil((scrollPos + viewHeight) / 20)
@@ -1086,7 +1084,7 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 	end
 end))
 
-function refreshTree()
+refreshTree = function()
 	if not ALIVE then return end
 	renderRequest = renderRequest + 1
 	
@@ -1119,7 +1117,7 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	end
 end)
 
-function refreshActiveList()
+refreshActiveList = function()
 	if not ALIVE then return end
 	for _, c in pairs(activeScroll:GetChildren()) do
 		if c:IsA("Frame") then c:Destroy() end
