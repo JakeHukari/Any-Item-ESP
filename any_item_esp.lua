@@ -725,6 +725,23 @@ end)
 
 -- ESP LOGIC
 
+local function removeEsp(instance)
+	local objs = espObjects[instance]
+	if objs then
+		if objs.GUI then objs.GUI:Destroy() end
+		if objs.Highlight then objs.Highlight:Destroy() end
+		
+		for i, inst in ipairs(activeHighlights) do
+			if inst == instance then
+				table.remove(activeHighlights, i)
+				break
+			end
+		end
+		espObjects[instance] = nil
+		espObjectCount = math.max(0, espObjectCount - 1)
+	end
+end
+
 local function createEsp(instance, source)
 	if not ALIVE then return end
 	if espObjects[instance] then return end
@@ -801,23 +818,6 @@ local function createEsp(instance, source)
 			destroyConn:Disconnect()
 			removeEsp(instance)
 		end)
-	end
-end
-
-local function removeEsp(instance)
-	local objs = espObjects[instance]
-	if objs then
-		if objs.GUI then objs.GUI:Destroy() end
-		if objs.Highlight then objs.Highlight:Destroy() end
-		
-		for i, inst in ipairs(activeHighlights) do
-			if inst == instance then
-				table.remove(activeHighlights, i)
-				break
-			end
-		end
-		espObjects[instance] = nil
-		espObjectCount = math.max(0, espObjectCount - 1)
 	end
 end
 
