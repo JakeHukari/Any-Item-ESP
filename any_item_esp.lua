@@ -122,6 +122,11 @@ local function UnloadScript(screenGui)
 	table.clear(activeHighlights)
 	table.clear(watchedFolders)
 	table.clear(espTargets)
+
+	-- Allow re-execution
+	if rawget(globalEnv, "AnyItemESP") then
+		globalEnv.AnyItemESP = nil
+	end
 end
 
 -- GUI Creation
@@ -1107,7 +1112,7 @@ end
 addConnection(explorerScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(updateViewport))
 addConnection(explorerScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateViewport))
 
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+addConnection(searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	searchText = searchBox.Text
 	searchDebounceToken = searchDebounceToken + 1
 	local myToken = searchDebounceToken
@@ -1116,7 +1121,7 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	if searchDebounceToken == myToken and ALIVE then 
 		refreshTree() 
 	end
-end)
+end))
 
 refreshActiveList = function()
 	if not ALIVE then return end
