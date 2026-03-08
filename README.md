@@ -1,9 +1,9 @@
 # Any Item ESP
 Provides an explorer to create ESP elements for any item(s) in the workspace
 
-### This script creates a workspace 'explorer' where you can select any individual 'item' or 'group of items'(folder) and creates an esp element for said 'items'
+### This script provides an ingame workspace explorer where you can select any individual item, model, part, or folder of items, to automatically create customizable, always visible esp highlights for any selected items.
 
-### The tool provides a settings menu to modify things like the esp color and other stuff
+### The tool provides a settings menu to modify esp colors, quickly copy item/path data, and even teleport to ingame workspace objects. 
 
 ### This script works universally on any roblox(or Lua) game.
 
