@@ -33,12 +33,16 @@ local SETTINGS = {
 	MaxTotalObjects = 1000
 }
 
--- Game-Specific Templates (PlaceId based)
+-- Game-Specific Templates
 local GAME_TEMPLATES = {
-	["2474168535"] = { -- Enter game ID
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- Enter path to object(s)
+	["2474168535"] = { -- WB
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- path to object(s)
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0)},
 		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
+	},
+	["863266079"] = { -- AR2
+		{Path = "Zombies", Color = Color3.fromRGB(0, 191, 108)}, 
+		{Path = "Vehicles", Color = Color3.fromRGB(255, 255, 255)}
 	}
 	-- Add more game templates here
 }
