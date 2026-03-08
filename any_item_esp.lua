@@ -37,7 +37,7 @@ local SETTINGS = {
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- WB
 		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- path to object(s)
-		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0)},
+		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true},
 		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
 	},
 	["863266079"] = { -- AR2
@@ -1357,7 +1357,7 @@ local function ApplyTemplate()
 				-- Preset the color before toggling
 				targetSettings[target] = {
 					Color = entry.Color,
-					Rainbow = false
+					Rainbow = entry.Rainbow or false
 				}
 				toggleEsp(target, true)
 			end
