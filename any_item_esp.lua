@@ -37,7 +37,8 @@ local SETTINGS = {
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- Enter game ID
 		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- Enter path to object(s)
-		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0)}
+		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0)},
+		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
 	}
 	-- Add more game templates here
 }
