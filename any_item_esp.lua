@@ -76,15 +76,15 @@ local activeDrag = nil -- { callback, onEnd }
 
 -- Icons
 local ICONS = {
-	Folder = "📁",
+	Folder = "📂",
 	Model = "📦",
 	Part = "🧱",
 	MeshPart = "🗿",
 	Script = "📜",
 	LocalScript = "📝",
-	Unknown = "📄",
+	Unknown = "❔",
 	EyeOn = "🟢",
-	EyeOff = "👁️",
+	EyeOff = "🔴",
 	Settings = "⚙️"
 }
 
@@ -182,7 +182,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "Title"
 titleLabel.Size = UDim2.new(1, -70, 1, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "  🔍 Any-Item-ESP"
+titleLabel.Text = "  👁️ Any-Item-ESP"
 titleLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Font = FONT_BOLD
@@ -1178,7 +1178,7 @@ refreshActiveList = function()
 		teleportBtn.Position = UDim2.new(1, -145, 0, 7)
 		teleportBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 100)
 		teleportBtn.BorderSizePixel = 0
-		teleportBtn.Text = "📍"
+		teleportBtn.Text = "TP"
 		teleportBtn.TextColor3 = Color3.new(1, 1, 1)
 		teleportBtn.Font = FONT
 		teleportBtn.TextSize = 12
