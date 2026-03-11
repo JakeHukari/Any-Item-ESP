@@ -30,7 +30,8 @@ local SETTINGS = {
 	MaxHighlights = 50,
 	-- RainbowMode = true, -- REMOVED GLOBAL
 	ShowNames = true,
-	MaxTotalObjects = 1000
+	MaxTotalObjects = 1000,
+	VerticalOffset = 2
 }
 
 -- Game-Specific Templates
@@ -646,7 +647,59 @@ sliderBtn.MouseButton1Down:Connect(function()
 	activeDrag = { component = "MaxHighlights", updateFn = updateSettingsSlider }
 end)
 
--- 4. Rainbow Mode (REMOVED GLOBAL)
+-- 4. Vertical Offset
+local verticalOffsetRow = createSettingRow("Vertical Offset", 4)
+local vSliderBg = Instance.new("Frame")
+vSliderBg.Name = "SliderBg"
+vSliderBg.Size = UDim2.new(0, 80, 0, 6)
+vSliderBg.Position = UDim2.new(1, -95, 0.5, -3)
+vSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+vSliderBg.BorderSizePixel = 0
+vSliderBg.Parent = verticalOffsetRow
+
+local vSliderFill = Instance.new("Frame")
+vSliderFill.Name = "SliderFill"
+vSliderFill.Size = UDim2.new(SETTINGS.VerticalOffset / 10, 0, 1, 0)
+vSliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
+vSliderFill.BorderSizePixel = 0
+vSliderFill.Parent = vSliderBg
+
+local vValLabel = Instance.new("TextLabel")
+vValLabel.Name = "ValueLabel"
+vValLabel.Size = UDim2.new(0, 30, 1, 0)
+vValLabel.Position = UDim2.new(1, 5, 0.5, -10)
+vValLabel.BackgroundTransparency = 1
+vValLabel.Text = string.format("%.1f", SETTINGS.VerticalOffset)
+vValLabel.TextColor3 = Color3.new(1, 1, 1)
+vValLabel.Font = FONT
+vValLabel.TextSize = 12
+vValLabel.Parent = vSliderBg
+
+local vSliderBtn = Instance.new("TextButton")
+vSliderBtn.Name = "SliderBtn"
+vSliderBtn.Size = UDim2.new(1, 0, 1, 10)
+vSliderBtn.Position = UDim2.new(0, 0, 0, -5)
+vSliderBtn.BackgroundTransparency = 1
+vSliderBtn.Text = ""
+vSliderBtn.Parent = vSliderBg
+
+local function updateVerticalOffsetSlider(mouseX)
+	local rel = (mouseX - vSliderBg.AbsolutePosition.X) / vSliderBg.AbsoluteSize.X
+	local percent = math.clamp(rel, 0, 1)
+	local val = math.floor(percent * 100) / 10 -- 0.0 to 10.0
+	
+	SETTINGS.VerticalOffset = val
+	vSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+	vValLabel.Text = string.format("%.1f", val)
+end
+
+vSliderBtn.MouseButton1Down:Connect(function()
+	local mouse = PLAYER:GetMouse()
+	updateVerticalOffsetSlider(mouse.X)
+	activeDrag = { component = "VerticalOffset", updateFn = updateVerticalOffsetSlider }
+end)
+
+-- 5. Rainbow Mode (REMOVED GLOBAL)
 -- Kept empty or replaced/removed
 
 
@@ -768,6 +821,9 @@ local function createEsp(instance, source)
 		bg.Size = UDim2.new(0, 100, 0, 30)
 		bg.AlwaysOnTop = true
 		bg.Name = "ESPTag"
+		bg.Adornee = instance
+		bg.ExtentsOffset = Vector3.new(0, 1, 0)
+		bg.StudsOffset = Vector3.new(0, SETTINGS.VerticalOffset, 0)
 		
 		local s = targetSettings[source]
 		local color = s and s.Color or Color3.new(1, 0, 0)
@@ -1319,6 +1375,14 @@ task.spawn(function()
 					if hl.FillColor ~= color then
 						hl.FillColor = color
 						hl.OutlineColor = color
+					end
+				end
+
+				local gui = objs.GUI
+				if gui then
+					local expectedOffset = Vector3.new(0, SETTINGS.VerticalOffset, 0)
+					if gui.StudsOffset ~= expectedOffset then
+						gui.StudsOffset = expectedOffset
 					end
 				end
 			else
