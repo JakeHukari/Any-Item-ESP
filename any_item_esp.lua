@@ -166,7 +166,7 @@ mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
-mainFrame.Draggable = true
+mainFrame.Draggable = false
 mainFrame.Parent = screenGui
 addCorners(mainFrame, 8)
 addStroke(mainFrame, Color3.fromRGB(50, 50, 55), 2)
@@ -750,7 +750,34 @@ tabActive.MouseButton1Click:Connect(function() switchTab("Active") end)
 local isMinimized = false
 local wasSelectionSettingsOpen = false
 
-minButton.MouseButton1Click:Connect(function()
+local function ensureWithinBounds()
+	local screen = screenGui.AbsoluteSize
+	local size = mainFrame.AbsoluteSize
+	local anchor = mainFrame.AnchorPoint
+	
+	-- Calculate actual bounds based on anchor point
+	local minX = size.X * anchor.X
+	local maxX = screen.X - (size.X * (1 - anchor.X))
+	local minY = size.Y * anchor.Y
+	local maxY = screen.Y - (size.Y * (1 - anchor.Y))
+	
+	local currentX = mainFrame.Position.X.Offset
+	local currentY = mainFrame.Position.Y.Offset
+	
+	-- If it's still using Scale (centered), convert to Offset for dragging/clamping
+	if mainFrame.Position.X.Scale ~= 0 or mainFrame.Position.Y.Scale ~= 0 then
+		currentX = mainFrame.AbsolutePosition.X + (size.X * anchor.X)
+		currentY = mainFrame.AbsolutePosition.Y + (size.Y * anchor.Y)
+	end
+	
+	local clampedX = math.clamp(currentX, minX, maxX)
+	local clampedY = math.clamp(currentY, minY, maxY)
+	
+	mainFrame.Position = UDim2.new(0, clampedX, 0, clampedY)
+end
+
+local function toggleMinimize()
+	if not ALIVE then return end
 	isMinimized = not isMinimized
 	tabBar.Visible = not isMinimized
 	contentArea.Visible = not isMinimized
@@ -778,8 +805,59 @@ minButton.MouseButton1Click:Connect(function()
 				selectionSettingsFrame.Visible = true
 			end
 		end
+		-- Ensure menu doesn't pop out of bounds when maximized
+		task.defer(ensureWithinBounds)
 	end
-end)
+end
+
+minButton.MouseButton1Click:Connect(toggleMinimize)
+
+-- Keyboard Shortcut
+addConnection(UserInputService.InputBegan:Connect(function(input, processed)
+	if UserInputService:GetFocusedTextBox() then return end
+	if input.KeyCode == Enum.KeyCode.Backspace and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+		toggleMinimize()
+	end
+end))
+
+-- Custom Dragging logic
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+
+addConnection(header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		isDragging = true
+		dragStart = input.Position
+		
+		local size = mainFrame.AbsoluteSize
+		local anchor = mainFrame.AnchorPoint
+		
+		-- Use Offset to prevent scaling issues during drag
+		startPos = Vector2.new(
+			mainFrame.AbsolutePosition.X + (size.X * anchor.X),
+			mainFrame.AbsolutePosition.Y + (size.Y * anchor.Y)
+		)
+		
+		local connection
+		connection = input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				isDragging = false
+				connection:Disconnect()
+			end
+		end)
+	end
+end))
+
+addConnection(UserInputService.InputChanged:Connect(function(input)
+	if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(0, startPos.X + delta.X, 0, startPos.Y + delta.Y)
+		ensureWithinBounds()
+	end
+end))
+
+addConnection(screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(ensureWithinBounds))
 
 -- ESP LOGIC
 
