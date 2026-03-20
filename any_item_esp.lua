@@ -138,6 +138,7 @@ end
 -- GUI Creation
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "Any_Item_ESP"
+screenGui.IgnoreGuiInset = true
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = PLAYER_GUI
@@ -794,6 +795,8 @@ local function toggleMinimize()
 		
 		mainFrame.Size = UDim2.new(0, 340, 0, 32)
 		minButton.Text = "+"
+		-- Ensure menu doesn't pop out of bounds when minimized
+		task.defer(ensureWithinBounds)
 	else
 		mainFrame.Size = UDim2.new(0, 340, 0, 480)
 		minButton.Text = "−"
@@ -805,7 +808,7 @@ local function toggleMinimize()
 				selectionSettingsFrame.Visible = true
 			end
 		end
-		-- Ensure menu doesn't pop out of bounds when maximized
+		-- Ensure menu doesn't pop out of bounds when toggled
 		task.defer(ensureWithinBounds)
 	end
 end
