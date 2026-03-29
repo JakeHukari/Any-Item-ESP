@@ -72,6 +72,15 @@ local function addConnection(conn)
 	return conn
 end
 
+local function removeConnection(conn)
+	if not conn then return end
+	if conn.Connected then conn:Disconnect() end
+	local idx = table.find(connections, conn)
+	if idx then
+		table.remove(connections, idx)
+	end
+end
+
 -- Centralized Drag Manager
 local activeDrag = nil -- { callback, onEnd }
 
@@ -320,11 +329,6 @@ activeScroll.ScrollBarThickness = 5
 activeScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
 activeScroll.Visible = false
 activeScroll.Parent = contentArea
-
-local activeListLayout = Instance.new("UIListLayout")
-activeListLayout.Parent = activeScroll
-activeListLayout.SortOrder = Enum.SortOrder.Name
-activeListLayout.Padding = UDim.new(0, 4)
 
 -- Settings Frame
 local settingsFrame = Instance.new("Frame")
@@ -867,8 +871,17 @@ addConnection(screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(ensureW
 local function removeEsp(instance)
 	local objs = espObjects[instance]
 	if objs then
-		if objs.GUI then objs.GUI:Destroy() end
-		if objs.Highlight then objs.Highlight:Destroy() end
+		if objs.DestroyConn then
+			objs.DestroyConn:Disconnect()
+		end
+		if objs.GUI then 
+			objs.GUI.Adornee = nil
+			objs.GUI:Destroy() 
+		end
+		if objs.Highlight then 
+			objs.Highlight.Adornee = nil
+			objs.Highlight:Destroy() 
+		end
 		
 		for i, inst in ipairs(activeHighlights) do
 			if inst == instance then
@@ -952,12 +965,11 @@ local function createEsp(instance, source)
 			table.insert(activeHighlights, instance)
 		end
 		
-		espObjects[instance] = { GUI = bg, Highlight = hl, Label = tl, Source = source, Root = rootPart }
+		local objs = { GUI = bg, Highlight = hl, Label = tl, Source = source, Root = rootPart }
+		espObjects[instance] = objs
 		espObjectCount = espObjectCount + 1
 
-		local destroyConn
-		destroyConn = instance.Destroying:Connect(function()
-			destroyConn:Disconnect()
+		objs.DestroyConn = instance.Destroying:Connect(function()
 			removeEsp(instance)
 		end)
 	end
@@ -998,7 +1010,7 @@ local function toggleEsp(instance, forceState)
 			end
 		else
 			if watchedFolders[instance] then
-				watchedFolders[instance]:Disconnect()
+				removeConnection(watchedFolders[instance])
 				watchedFolders[instance] = nil
 				for _, child in pairs(instance:GetChildren()) do
 					-- When removing container, check if child is not targeted individually?
@@ -1090,7 +1102,7 @@ local function releaseRowToPool(row)
 end
 
 local function buildFlatList(list, instance, depth)
-	if not ALIVE then return end
+	if not ALIVE or depth > 50 or #list > 5000 then return end
 	local query = searchText:lower()
 	local matches = true
 	if query ~= "" then
@@ -1108,7 +1120,7 @@ local function buildFlatList(list, instance, depth)
 		table.insert(list, {Info = instance, Depth = depth})
 	end
 	
-	if (query == "" and expandedNodes[instance]) or (query ~= "" and "always expand matches" and matches) then
+	if (query == "" and expandedNodes[instance]) or (query ~= "" and matches) then
 		for _, child in pairs(instance:GetChildren()) do
 			buildFlatList(list, child, depth + 1)
 		end
@@ -1117,6 +1129,164 @@ end
 
 local currentFlatList = {}
 local activeRows = {} -- { [index] = Frame }
+
+local activeFlatList = {}
+local activeTabRows = {} -- { [index] = Frame }
+
+local function updateActiveViewport()
+	if not ALIVE then return end
+	local viewHeight = activeScroll.AbsoluteSize.Y
+	if viewHeight == 0 then viewHeight = 400 end
+	local scrollPos = activeScroll.CanvasPosition.Y
+	local startIdx = math.floor(scrollPos / 40) + 1
+	local endIdx = math.ceil((scrollPos + viewHeight) / 40)
+
+	-- Release out of view rows
+	for idx, row in pairs(activeTabRows) do
+		if idx < startIdx or idx > endIdx then
+			releaseRowToPool(row)
+			activeTabRows[idx] = nil
+		end
+	end
+
+	-- Render visible rows
+	for i = startIdx, endIdx do
+		local inst = activeFlatList[i]
+		if inst and not activeTabRows[i] then
+			local row = getRowFromPool()
+			row.Size = UDim2.new(1, 0, 0, 36)
+			row.Position = UDim2.new(0, 0, 0, (i - 1) * 40)
+			row.BackgroundTransparency = 0
+			row.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+			addCorners(row, 4)
+
+			-- We need to handle the specific layout of the active list row here
+			-- To keep getRowFromPool generic, we should probably clear and rebuild it
+			-- or better yet, make a separate pool for active rows if they are very different.
+			-- Let's repurpose rowPool items but we must be careful.
+			-- Actually, it's safer to have a separate pool or just customize it here.
+			
+			-- For now, let's clear existing children of row if it's from explorer pool
+			for _, c in pairs(row:GetChildren()) do
+				if not c:IsA("UICorner") then c:Destroy() end
+			end
+
+			local s = targetSettings[inst]
+			local indColor = Instance.new("Frame")
+			indColor.Size = UDim2.new(0, 4, 1, -8)
+			indColor.Position = UDim2.new(0, 4, 0, 4)
+			indColor.BackgroundColor3 = s and s.Color or Color3.new(1,1,1)
+			indColor.BorderSizePixel = 0
+			indColor.Parent = row
+			addCorners(indColor, 2)
+			
+			local lbl = Instance.new("TextLabel")
+			lbl.Size = UDim2.new(1, -150, 1, 0)
+			lbl.Position = UDim2.new(0, 14, 0, 0)
+			lbl.BackgroundTransparency = 1
+			lbl.Text = inst.Name .. " (" .. inst.ClassName .. ")"
+			lbl.TextColor3 = Color3.fromRGB(220, 220, 225)
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.Font = FONT
+			lbl.TextSize = 13
+			lbl.TextTruncate = Enum.TextTruncate.AtEnd
+			lbl.Parent = row
+			
+			-- Teleport Button
+			local teleportBtn = Instance.new("TextButton")
+			teleportBtn.Size = UDim2.new(0, 22, 0, 22)
+			teleportBtn.Position = UDim2.new(1, -145, 0, 7)
+			teleportBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 100)
+			teleportBtn.BorderSizePixel = 0
+			teleportBtn.Text = "TP"
+			teleportBtn.TextColor3 = Color3.new(1, 1, 1)
+			teleportBtn.Font = FONT
+			teleportBtn.TextSize = 12
+			teleportBtn.Parent = row
+			addCorners(teleportBtn, 4)
+			teleportBtn.MouseButton1Click:Connect(function()
+				local char = PLAYER.Character
+				if char and char:FindFirstChild("HumanoidRootPart") then
+					local targetPos
+					if inst:IsA("Model") then
+						local part = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+						if part then targetPos = part.Position end
+					elseif inst:IsA("BasePart") then
+						targetPos = inst.Position
+					end
+					if targetPos then
+						char.HumanoidRootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
+					end
+				end
+			end)
+			
+			-- Copy Path Button
+			local copyBtn = Instance.new("TextButton")
+			copyBtn.Size = UDim2.new(0, 22, 0, 22)
+			copyBtn.Position = UDim2.new(1, -120, 0, 7)
+			copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+			copyBtn.BorderSizePixel = 0
+			copyBtn.Text = "📋"
+			copyBtn.TextColor3 = Color3.new(1, 1, 1)
+			copyBtn.Font = FONT
+			copyBtn.TextSize = 12
+			copyBtn.Parent = row
+			addCorners(copyBtn, 4)
+			copyBtn.MouseButton1Click:Connect(function()
+				local path = inst:GetFullName()
+				if setclipboard then
+					setclipboard(path)
+				elseif Clipboard and Clipboard.set then
+					Clipboard.set(path)
+				end
+				copyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+				task.delay(0.5, function()
+					if copyBtn and copyBtn.Parent then
+						copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+					end
+				end)
+			end)
+			
+			local setsBtn = Instance.new("TextButton")
+			setsBtn.Size = UDim2.new(0, 22, 0, 22)
+			setsBtn.Position = UDim2.new(1, -95, 0, 7)
+			setsBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+			setsBtn.BorderSizePixel = 0
+			setsBtn.Text = ICONS.Settings
+			setsBtn.TextColor3 = Color3.new(1, 1, 1)
+			setsBtn.Font = FONT
+			setsBtn.TextSize = 12
+			setsBtn.Parent = row
+			addCorners(setsBtn, 4)
+			setsBtn.MouseButton1Click:Connect(function()
+				currentSelection = inst
+				selTitle.Text = "Settings: " .. inst.Name
+				selectionSettingsFrame.Visible = true
+				updateSelectionUI()
+			end)
+			
+			local removeBtn = Instance.new("TextButton")
+			removeBtn.Size = UDim2.new(0, 60, 0, 22)
+			removeBtn.Position = UDim2.new(1, -68, 0, 7)
+			removeBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+			removeBtn.BorderSizePixel = 0
+			removeBtn.Text = "Remove"
+			removeBtn.TextColor3 = Color3.new(1, 1, 1)
+			removeBtn.Font = FONT_BOLD
+			removeBtn.TextSize = 11
+			removeBtn.Parent = row
+			addCorners(removeBtn, 4)
+			
+			removeBtn.MouseButton1Click:Connect(function()
+				toggleEsp(inst, false)
+				-- list will be refreshed by toggleEsp calling refreshActiveList
+			end)
+
+			row.Parent = activeScroll
+			activeTabRows[i] = row
+		end
+	end
+end
 
 local function updateViewport()
 	if not ALIVE then return end
@@ -1145,7 +1315,7 @@ local function updateViewport()
 			
 			local padding = depth * 20
 			local isContainer = inst:IsA("Folder") or inst:IsA("Model")
-			local hasChildren = #inst:GetChildren() > 0
+			local hasChildren = inst:FindFirstChildWhichIsA("Instance") ~= nil
 
 			local expandBtn = row:FindFirstChild("Expand")
 			if expandBtn then
@@ -1253,6 +1423,8 @@ end
 
 addConnection(explorerScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(updateViewport))
 addConnection(explorerScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateViewport))
+addConnection(activeScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(updateActiveViewport))
+addConnection(activeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateActiveViewport))
 
 addConnection(searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	searchText = searchBox.Text
@@ -1267,140 +1439,23 @@ end))
 
 refreshActiveList = function()
 	if not ALIVE then return end
-	for _, c in pairs(activeScroll:GetChildren()) do
-		if c:IsA("Frame") then c:Destroy() end
-	end
 	
-	local items = {}
-	for inst, _ in pairs(espTargets) do table.insert(items, inst) end
+	-- Clear active rows
+	for idx, row in pairs(activeTabRows) do
+		releaseRowToPool(row)
+	end
+	table.clear(activeTabRows)
+	
+	activeFlatList = {}
+	for inst, _ in pairs(espTargets) do table.insert(activeFlatList, inst) end
 	for inst, _ in pairs(watchedFolders) do 
-		if not espTargets[inst] then table.insert(items, inst) end
+		if not espTargets[inst] then table.insert(activeFlatList, inst) end
 	end
 	
-	table.sort(items, function(a,b) return a.Name < b.Name end)
+	table.sort(activeFlatList, function(a,b) return a.Name < b.Name end)
 	
-	for _, inst in ipairs(items) do
-		local row = Instance.new("Frame")
-		row.Name = inst.Name
-		row.Size = UDim2.new(1, 0, 0, 36)
-		row.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-		row.BorderSizePixel = 0
-		row.Parent = activeScroll
-		addCorners(row, 4)
-		
-		local s = targetSettings[inst]
-		local indColor = Instance.new("Frame")
-		indColor.Size = UDim2.new(0, 4, 1, -8)
-		indColor.Position = UDim2.new(0, 4, 0, 4)
-		indColor.BackgroundColor3 = s and s.Color or Color3.new(1,1,1)
-		indColor.BorderSizePixel = 0
-		indColor.Parent = row
-		addCorners(indColor, 2)
-		
-		local lbl = Instance.new("TextLabel")
-		lbl.Size = UDim2.new(1, -150, 1, 0)
-		lbl.Position = UDim2.new(0, 14, 0, 0)
-		lbl.BackgroundTransparency = 1
-		lbl.Text = inst.Name .. " (" .. inst.ClassName .. ")"
-		lbl.TextColor3 = Color3.fromRGB(220, 220, 225)
-		lbl.TextXAlignment = Enum.TextXAlignment.Left
-		lbl.Font = FONT
-		lbl.TextSize = 13
-		lbl.TextTruncate = Enum.TextTruncate.AtEnd
-		lbl.Parent = row
-		
-		-- Teleport Button
-		local teleportBtn = Instance.new("TextButton")
-		teleportBtn.Size = UDim2.new(0, 22, 0, 22)
-		teleportBtn.Position = UDim2.new(1, -145, 0, 7)
-		teleportBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 100)
-		teleportBtn.BorderSizePixel = 0
-		teleportBtn.Text = "TP"
-		teleportBtn.TextColor3 = Color3.new(1, 1, 1)
-		teleportBtn.Font = FONT
-		teleportBtn.TextSize = 12
-		teleportBtn.Parent = row
-		addCorners(teleportBtn, 4)
-		teleportBtn.MouseButton1Click:Connect(function()
-			local char = PLAYER.Character
-			if char and char:FindFirstChild("HumanoidRootPart") then
-				local targetPos
-				if inst:IsA("Model") then
-					local part = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
-					if part then targetPos = part.Position end
-				elseif inst:IsA("BasePart") then
-					targetPos = inst.Position
-				end
-				if targetPos then
-					char.HumanoidRootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
-				end
-			end
-		end)
-		
-		-- Copy Path Button
-		local copyBtn = Instance.new("TextButton")
-		copyBtn.Size = UDim2.new(0, 22, 0, 22)
-		copyBtn.Position = UDim2.new(1, -120, 0, 7)
-		copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-		copyBtn.BorderSizePixel = 0
-		copyBtn.Text = "📋"
-		copyBtn.TextColor3 = Color3.new(1, 1, 1)
-		copyBtn.Font = FONT
-		copyBtn.TextSize = 12
-		copyBtn.Parent = row
-		addCorners(copyBtn, 4)
-		copyBtn.MouseButton1Click:Connect(function()
-			local path = inst:GetFullName()
-			if setclipboard then
-				setclipboard(path)
-			elseif Clipboard and Clipboard.set then
-				Clipboard.set(path)
-			end
-			-- Visual feedback
-			copyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
-			task.delay(0.5, function()
-				if copyBtn and copyBtn.Parent then
-					copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-				end
-			end)
-		end)
-		
-		local setsBtn = Instance.new("TextButton")
-		setsBtn.Size = UDim2.new(0, 22, 0, 22)
-		setsBtn.Position = UDim2.new(1, -95, 0, 7)
-		setsBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
-		setsBtn.BorderSizePixel = 0
-		setsBtn.Text = ICONS.Settings
-		setsBtn.TextColor3 = Color3.new(1, 1, 1)
-		setsBtn.Font = FONT
-		setsBtn.TextSize = 12
-		setsBtn.Parent = row
-		addCorners(setsBtn, 4)
-		setsBtn.MouseButton1Click:Connect(function()
-			currentSelection = inst
-			selTitle.Text = "Settings: " .. inst.Name
-			selectionSettingsFrame.Visible = true
-			updateSelectionUI()
-		end)
-		
-		local removeBtn = Instance.new("TextButton")
-		removeBtn.Size = UDim2.new(0, 60, 0, 22)
-		removeBtn.Position = UDim2.new(1, -68, 0, 7)
-		removeBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-		removeBtn.BorderSizePixel = 0
-		removeBtn.Text = "Remove"
-		removeBtn.TextColor3 = Color3.new(1, 1, 1)
-		removeBtn.Font = FONT_BOLD
-		removeBtn.TextSize = 11
-		removeBtn.Parent = row
-		addCorners(removeBtn, 4)
-		
-		removeBtn.MouseButton1Click:Connect(function()
-			toggleEsp(inst, false)
-			refreshActiveList()
-		end)
-	end
-	activeScroll.CanvasSize = UDim2.new(0, 0, 0, #items * 40) -- 36px row + 4px padding
+	activeScroll.CanvasSize = UDim2.new(0, 0, 0, #activeFlatList * 40)
+	updateActiveViewport()
 end
 
 -- Animation Loop
@@ -1431,6 +1486,9 @@ task.spawn(function()
 					if label.TextColor3 ~= color then
 						label.TextColor3 = color 
 					end
+					if label.Visible ~= SETTINGS.ShowNames then
+						label.Visible = SETTINGS.ShowNames
+					end
 					
 					-- Update distance display (Staggered every 5 frames)
 					if updateCounter % 5 == 0 then
@@ -1457,10 +1515,16 @@ task.spawn(function()
 						hl.FillColor = color
 						hl.OutlineColor = color
 					end
+					if hl.OutlineTransparency ~= 0.5 then
+						hl.OutlineTransparency = 0.5
+					end
 				end
 
 				local gui = objs.GUI
 				if gui then
+					if gui.Enabled ~= true then
+						gui.Enabled = true
+					end
 					local expectedOffset = Vector3.new(0, SETTINGS.VerticalOffset, 0)
 					if gui.StudsOffset ~= expectedOffset then
 						gui.StudsOffset = expectedOffset
