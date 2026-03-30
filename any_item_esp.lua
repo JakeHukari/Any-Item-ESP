@@ -798,11 +798,11 @@ local function toggleMinimize()
 		settingsFrame.Visible = false
 		
 		mainFrame.Size = UDim2.new(0, 340, 0, 32)
+		mainFrame.Position = UDim2.new(0, 1760, 0, 35)
 		minButton.Text = "+"
-		-- Ensure menu doesn't pop out of bounds when minimized
-		task.defer(ensureWithinBounds)
 	else
 		mainFrame.Size = UDim2.new(0, 340, 0, 480)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 		minButton.Text = "−"
 		if currentTab == "Settings" then 
 			settingsFrame.Visible = true 
@@ -812,8 +812,6 @@ local function toggleMinimize()
 				selectionSettingsFrame.Visible = true
 			end
 		end
-		-- Ensure menu doesn't pop out of bounds when toggled
-		task.defer(ensureWithinBounds)
 	end
 end
 
