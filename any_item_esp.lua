@@ -798,7 +798,7 @@ local function toggleMinimize()
 		settingsFrame.Visible = false
 		
 		mainFrame.Size = UDim2.new(0, 340, 0, 32)
-		mainFrame.Position = UDim2.new(0, 1760, 0, 35)
+		mainFrame.Position = UDim2.new(0, 1580, 0, 40)
 		minButton.Text = "+"
 	else
 		mainFrame.Size = UDim2.new(0, 340, 0, 480)
