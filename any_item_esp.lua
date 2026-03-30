@@ -798,7 +798,7 @@ local function toggleMinimize()
 		
 		mainFrame.AnchorPoint = Vector2.new(1, 0)
 		mainFrame.Size = UDim2.fromScale(0.11, 0.0296) -- Smaller width to remove filler
-		mainFrame.Position = UDim2.fromScale(0.98, 0.02)
+		mainFrame.Position = UDim2.fromScale(0.913, 0.025)
 		header.Size = UDim2.fromScale(1, 1) -- Ensure header fills frame in minimized state
 		minButton.Text = "+"
 	else
