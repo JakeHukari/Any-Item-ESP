@@ -355,8 +355,8 @@ selectionSettingsFrame.ZIndex = 6
 selectionSettingsFrame.Parent = mainFrame
 
 local selTitle = Instance.new("TextLabel")
-selTitle.Size = UDim2.fromScale(0.9118, 0.0549)
-selTitle.Position = UDim2.fromScale(0.0294, 0.011)
+selTitle.Size = UDim2.new(1, -30, 0, 25)
+selTitle.Position = UDim2.new(0, 10, 0, 5)
 selTitle.BackgroundTransparency = 1
 selTitle.Text = "Selection Settings"
 selTitle.TextColor3 = Color3.new(1, 1, 1)
@@ -366,9 +366,8 @@ selTitle.TextXAlignment = Enum.TextXAlignment.Left
 selTitle.Parent = selectionSettingsFrame
 
 local closeSelBtn = Instance.new("TextButton")
-closeSelBtn.Size = UDim2.fromScale(0.0735, 0.0549)
-closeSelBtn.AnchorPoint = Vector2.new(1, 0)
-closeSelBtn.Position = UDim2.fromScale(0.98, 0.011)
+closeSelBtn.Size = UDim2.new(0, 25, 0, 25)
+closeSelBtn.Position = UDim2.new(1, -30, 0, 5)
 closeSelBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 closeSelBtn.Text = "X"
 closeSelBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -383,8 +382,8 @@ local currentSelection = nil -- The instance currently being edited
 -- Helper for color sliders
 local function createColorSlider(name, colorComp, yPos, callback)
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(0.0588, 0.044)
-	label.Position = UDim2.fromScale(0.0294, yPos / 455)
+	label.Size = UDim2.new(0, 20, 0, 20)
+	label.Position = UDim2.new(0, 10, 0, yPos)
 	label.BackgroundTransparency = 1
 	label.Text = name
 	label.TextColor3 = Color3.new(1, 1, 1)
@@ -392,21 +391,21 @@ local function createColorSlider(name, colorComp, yPos, callback)
 	label.Parent = selectionSettingsFrame
 	
 	local bg = Instance.new("Frame")
-	bg.Size = UDim2.fromScale(0.8529, 0.0132)
-	bg.Position = UDim2.fromScale(0.1029, (yPos + 7) / 455)
+	bg.Size = UDim2.new(1, -50, 0, 6)
+	bg.Position = UDim2.new(0, 35, 0, yPos + 7)
 	bg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 	bg.BorderSizePixel = 0
 	bg.Parent = selectionSettingsFrame
 	
 	local fill = Instance.new("Frame")
-	fill.Size = UDim2.fromScale(0, 1)
+	fill.Size = UDim2.new(0, 0, 1, 0)
 	fill.BackgroundColor3 = colorComp
 	fill.BorderSizePixel = 0
 	fill.Parent = bg
 	
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.fromScale(1, 2.6667)
-	btn.Position = UDim2.fromScale(0, -0.8333)
+	btn.Size = UDim2.new(1, 0, 1, 10)
+	btn.Position = UDim2.new(0, 0, 0, -5)
 	btn.BackgroundTransparency = 1
 	btn.Text = ""
 	btn.Parent = bg
@@ -419,15 +418,14 @@ local gSlider = createColorSlider("G", Color3.fromRGB(0, 255, 0), 70, function(v
 local bSlider = createColorSlider("B", Color3.fromRGB(0, 0, 255), 100, function(val) end)
 
 local previewBox = Instance.new("Frame")
-previewBox.Size = UDim2.fromScale(0.1176, 0.0879)
-previewBox.AnchorPoint = Vector2.new(1, 0)
-previewBox.Position = UDim2.fromScale(0.98, 0.0879)
+previewBox.Size = UDim2.new(0, 40, 0, 40)
+previewBox.Position = UDim2.new(1, -60, 0, 40)
 previewBox.BackgroundColor3 = Color3.new(1, 1, 1)
 previewBox.Parent = selectionSettingsFrame
 
 local rainbowToggleBtn = Instance.new("TextButton")
-rainbowToggleBtn.Size = UDim2.fromScale(0.9412, 0.0549)
-rainbowToggleBtn.Position = UDim2.fromScale(0.0294, 0.3077)
+rainbowToggleBtn.Size = UDim2.new(1, -20, 0, 25)
+rainbowToggleBtn.Position = UDim2.new(0, 10, 0, 140)
 rainbowToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 rainbowToggleBtn.Text = "Rainbow Mode: OFF"
 rainbowToggleBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -444,9 +442,9 @@ local function updateSelectionUI()
 	rainbowToggleBtn.BackgroundColor3 = s.Rainbow and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(60, 60, 60)
 	
 	-- Update slider visual positions
-	rSlider.Fill.Size = UDim2.fromScale(s.Color.R, 1)
-	gSlider.Fill.Size = UDim2.fromScale(s.Color.G, 1)
-	bSlider.Fill.Size = UDim2.fromScale(s.Color.B, 1)
+	rSlider.Fill.Size = UDim2.new(s.Color.R, 0, 1, 0)
+	gSlider.Fill.Size = UDim2.new(s.Color.G, 0, 1, 0)
+	bSlider.Fill.Size = UDim2.new(s.Color.B, 0, 1, 0)
 end
 
 local function bindSlider(params, component)
@@ -501,8 +499,8 @@ end)
 
 -- Color Presets UI
 local presetLabel = Instance.new("TextLabel")
-presetLabel.Size = UDim2.fromScale(0.9412, 0.044)
-presetLabel.Position = UDim2.fromScale(0.0294, 0.3846)
+presetLabel.Size = UDim2.new(1, -20, 0, 20)
+presetLabel.Position = UDim2.new(0, 10, 0, 175)
 presetLabel.BackgroundTransparency = 1
 presetLabel.Text = "Color Presets"
 presetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -512,14 +510,14 @@ presetLabel.TextXAlignment = Enum.TextXAlignment.Left
 presetLabel.Parent = selectionSettingsFrame
 
 local presetContainer = Instance.new("Frame")
-presetContainer.Size = UDim2.fromScale(0.9412, 0.2198)
-presetContainer.Position = UDim2.fromScale(0.0294, 0.4396)
+presetContainer.Size = UDim2.new(1, -20, 0, 100)
+presetContainer.Position = UDim2.new(0, 10, 0, 200)
 presetContainer.BackgroundTransparency = 1
 presetContainer.Parent = selectionSettingsFrame
 
 local presetGrid = Instance.new("UIGridLayout")
-presetGrid.CellSize = UDim2.fromScale(0.1, 0.32)
-presetGrid.CellPadding = UDim2.fromScale(0.0188, 0.06)
+presetGrid.CellSize = UDim2.new(0, 32, 0, 32)
+presetGrid.CellPadding = UDim2.new(0, 6, 0, 6)
 presetGrid.Parent = presetContainer
 
 for _, preset in ipairs(COLOR_PRESETS) do
@@ -556,7 +554,7 @@ settingsPadding.PaddingLeft = UDim.new(0, 5)
 -- Settings UI Elements
 local function createSettingRow(text, order)
 	local row = Instance.new("Frame")
-	row.Size = UDim2.fromScale(0.97, 0.066)
+	row.Size = UDim2.new(1, -10, 0, 30)
 	-- row.Position handled by UIListLayout
 	row.LayoutOrder = order
 	row.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -564,8 +562,8 @@ local function createSettingRow(text, order)
 	row.Parent = settingsFrame
 	
 	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.fromScale(0.6, 1)
-	lbl.Position = UDim2.fromScale(0.015, 0)
+	lbl.Size = UDim2.new(0.6, 0, 1, 0)
+	lbl.Position = UDim2.new(0, 5, 0, 0)
 	lbl.BackgroundTransparency = 1
 	lbl.Text = text
 	lbl.TextColor3 = Color3.new(1, 1, 1)
@@ -580,9 +578,8 @@ end
 -- 1. Unload
 local unloadRow = createSettingRow("Unload Script", 1)
 local unloadBtn = Instance.new("TextButton")
-unloadBtn.Size = UDim2.fromScale(0.2424, 0.6667)
-unloadBtn.AnchorPoint = Vector2.new(1, 0)
-unloadBtn.Position = UDim2.fromScale(0.985, 0.1667)
+unloadBtn.Size = UDim2.new(0, 80, 0, 20)
+unloadBtn.Position = UDim2.new(1, -85, 0, 5)
 unloadBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 unloadBtn.Text = "UNLOAD"
 unloadBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -594,9 +591,8 @@ unloadBtn.MouseButton1Click:Connect(function() UnloadScript(screenGui) end)
 -- 2. Rejoin
 local rejoinRow = createSettingRow("Rejoin Server", 2)
 local rejoinBtn = Instance.new("TextButton")
-rejoinBtn.Size = UDim2.fromScale(0.2424, 0.6667)
-rejoinBtn.AnchorPoint = Vector2.new(1, 0)
-rejoinBtn.Position = UDim2.fromScale(0.985, 0.1667)
+rejoinBtn.Size = UDim2.new(0, 80, 0, 20)
+rejoinBtn.Position = UDim2.new(1, -85, 0, 5)
 rejoinBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
 rejoinBtn.Text = "REJOIN"
 rejoinBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -612,9 +608,8 @@ local maxHighlightsRow = createSettingRow("Max Highlights", 3)
 -- Slider Logic
 local sliderBg = Instance.new("Frame")
 sliderBg.Name = "SliderBg"
-sliderBg.Size = UDim2.fromScale(0.2424, 0.2)
-sliderBg.AnchorPoint = Vector2.new(1, 0.5)
-sliderBg.Position = UDim2.fromScale(0.85, 0.5)
+sliderBg.Size = UDim2.new(0, 80, 0, 6)
+sliderBg.Position = UDim2.new(1, -95, 0.5, -3) -- Left a bit for text
 sliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 sliderBg.BorderSizePixel = 0
 sliderBg.Parent = maxHighlightsRow
@@ -628,8 +623,8 @@ sliderFill.Parent = sliderBg
 
 local valLabel = Instance.new("TextLabel")
 valLabel.Name = "ValueLabel"
-valLabel.Size = UDim2.fromScale(0.375, 3.3333)
-valLabel.Position = UDim2.fromScale(1.0625, -1.1667) -- To right of slider
+valLabel.Size = UDim2.new(0, 30, 1, 0)
+valLabel.Position = UDim2.new(1, 5, 0.5, -10) -- To right of slider
 valLabel.BackgroundTransparency = 1
 valLabel.Text = tostring(SETTINGS.MaxHighlights)
 valLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -639,8 +634,8 @@ valLabel.Parent = sliderBg
 
 local sliderBtn = Instance.new("TextButton")
 sliderBtn.Name = "SliderBtn"
-sliderBtn.Size = UDim2.fromScale(1, 2.6667) -- Larger hit area
-sliderBtn.Position = UDim2.fromScale(0, -0.8333)
+sliderBtn.Size = UDim2.new(1, 0, 1, 10) -- Larger hit area
+sliderBtn.Position = UDim2.new(0, 0, 0, -5)
 sliderBtn.BackgroundTransparency = 1
 sliderBtn.Text = ""
 sliderBtn.Parent = sliderBg
@@ -665,9 +660,8 @@ end)
 local verticalOffsetRow = createSettingRow("Vertical Offset", 4)
 local vSliderBg = Instance.new("Frame")
 vSliderBg.Name = "SliderBg"
-vSliderBg.Size = UDim2.fromScale(0.2424, 0.2)
-vSliderBg.AnchorPoint = Vector2.new(1, 0.5)
-vSliderBg.Position = UDim2.fromScale(0.85, 0.5)
+vSliderBg.Size = UDim2.new(0, 80, 0, 6)
+vSliderBg.Position = UDim2.new(1, -95, 0.5, -3)
 vSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 vSliderBg.BorderSizePixel = 0
 vSliderBg.Parent = verticalOffsetRow
@@ -681,8 +675,8 @@ vSliderFill.Parent = vSliderBg
 
 local vValLabel = Instance.new("TextLabel")
 vValLabel.Name = "ValueLabel"
-vValLabel.Size = UDim2.fromScale(0.375, 3.3333)
-vValLabel.Position = UDim2.fromScale(1.0625, -1.1667)
+vValLabel.Size = UDim2.new(0, 30, 1, 0)
+vValLabel.Position = UDim2.new(1, 5, 0.5, -10)
 vValLabel.BackgroundTransparency = 1
 vValLabel.Text = string.format("%.1f", SETTINGS.VerticalOffset)
 vValLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -692,8 +686,8 @@ vValLabel.Parent = vSliderBg
 
 local vSliderBtn = Instance.new("TextButton")
 vSliderBtn.Name = "SliderBtn"
-vSliderBtn.Size = UDim2.fromScale(1, 2.6667)
-vSliderBtn.Position = UDim2.fromScale(0, -0.8333)
+vSliderBtn.Size = UDim2.new(1, 0, 1, 10)
+vSliderBtn.Position = UDim2.new(0, 0, 0, -5)
 vSliderBtn.BackgroundTransparency = 1
 vSliderBtn.Text = ""
 vSliderBtn.Parent = vSliderBg
@@ -921,7 +915,7 @@ local function createEsp(instance, source)
 	
 	if rootPart then
 		local bg = Instance.new("BillboardGui")
-		bg.Size = UDim2.fromScale(0.052, 0.027)
+		bg.Size = UDim2.new(0, 100, 0, 30)
 		bg.AlwaysOnTop = true
 		bg.Name = "ESPTag"
 		bg.Adornee = instance
@@ -1062,12 +1056,12 @@ local function getRowFromPool()
 	end
 
 	row = Instance.new("Frame")
-	row.Size = UDim2.fromScale(1, 0.05) -- Default row height in explorer
+	row.Size = UDim2.new(1, 0, 0, 20)
 	row.BackgroundTransparency = 1
 
 	local expandBtn = Instance.new("TextButton")
 	expandBtn.Name = "Expand"
-	expandBtn.Size = UDim2.fromScale(0.0588, 1)
+	expandBtn.Size = UDim2.new(0, 20, 1, 0)
 	expandBtn.BackgroundTransparency = 1
 	expandBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
 	expandBtn.Font = FONT
@@ -1076,7 +1070,7 @@ local function getRowFromPool()
 
 	local iconLabel = Instance.new("TextLabel")
 	iconLabel.Name = "Icon"
-	iconLabel.Size = UDim2.fromScale(0.0588, 1)
+	iconLabel.Size = UDim2.new(0, 20, 1, 0)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.TextSize = 14
 	iconLabel.Parent = row
@@ -1093,9 +1087,8 @@ local function getRowFromPool()
 
 	local espBtn = Instance.new("TextButton")
 	espBtn.Name = "EspToggle"
-	espBtn.Size = UDim2.fromScale(0.0882, 1)
-	espBtn.AnchorPoint = Vector2.new(1, 0)
-	espBtn.Position = UDim2.fromScale(1, 0)
+	espBtn.Size = UDim2.new(0, 30, 1, 0)
+	espBtn.Position = UDim2.new(1, -30, 0, 0)
 	espBtn.BackgroundTransparency = 1
 	espBtn.TextColor3 = Color3.new(1, 1, 1)
 	espBtn.Font = FONT
@@ -1164,8 +1157,8 @@ local function updateActiveViewport()
 		local inst = activeFlatList[i]
 		if inst and not activeTabRows[i] then
 			local row = getRowFromPool()
-			row.Size = UDim2.fromScale(1, 0.09)
-			row.Position = UDim2.fromScale(0, (i - 1) * 0.1)
+			row.Size = UDim2.new(1, 0, 0, 36)
+			row.Position = UDim2.new(0, 0, 0, (i - 1) * 40)
 			row.BackgroundTransparency = 0
 			row.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
 			addCorners(row, 4)
@@ -1183,16 +1176,16 @@ local function updateActiveViewport()
 
 			local s = targetSettings[inst]
 			local indColor = Instance.new("Frame")
-			indColor.Size = UDim2.fromScale(0.0118, 0.7778)
-			indColor.Position = UDim2.fromScale(0.0118, 0.1111)
+			indColor.Size = UDim2.new(0, 4, 1, -8)
+			indColor.Position = UDim2.new(0, 4, 0, 4)
 			indColor.BackgroundColor3 = s and s.Color or Color3.new(1,1,1)
 			indColor.BorderSizePixel = 0
 			indColor.Parent = row
 			addCorners(indColor, 2)
 			
 			local lbl = Instance.new("TextLabel")
-			lbl.Size = UDim2.fromScale(0.5588, 1)
-			lbl.Position = UDim2.fromScale(0.0412, 0)
+			lbl.Size = UDim2.new(1, -150, 1, 0)
+			lbl.Position = UDim2.new(0, 14, 0, 0)
 			lbl.BackgroundTransparency = 1
 			lbl.Text = inst.Name .. " (" .. inst.ClassName .. ")"
 			lbl.TextColor3 = Color3.fromRGB(220, 220, 225)
@@ -1204,9 +1197,8 @@ local function updateActiveViewport()
 			
 			-- Teleport Button
 			local teleportBtn = Instance.new("TextButton")
-			teleportBtn.Size = UDim2.fromScale(0.0647, 0.6111)
-			teleportBtn.AnchorPoint = Vector2.new(1, 0)
-			teleportBtn.Position = UDim2.fromScale(0.5735, 0.1944)
+			teleportBtn.Size = UDim2.new(0, 22, 0, 22)
+			teleportBtn.Position = UDim2.new(1, -145, 0, 7)
 			teleportBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 100)
 			teleportBtn.BorderSizePixel = 0
 			teleportBtn.Text = "TP"
@@ -1233,9 +1225,8 @@ local function updateActiveViewport()
 			
 			-- Copy Path Button
 			local copyBtn = Instance.new("TextButton")
-			copyBtn.Size = UDim2.fromScale(0.0647, 0.6111)
-			copyBtn.AnchorPoint = Vector2.new(1, 0)
-			copyBtn.Position = UDim2.fromScale(0.6471, 0.1944)
+			copyBtn.Size = UDim2.new(0, 22, 0, 22)
+			copyBtn.Position = UDim2.new(1, -120, 0, 7)
 			copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
 			copyBtn.BorderSizePixel = 0
 			copyBtn.Text = "📋"
@@ -1260,9 +1251,8 @@ local function updateActiveViewport()
 			end)
 			
 			local setsBtn = Instance.new("TextButton")
-			setsBtn.Size = UDim2.fromScale(0.0647, 0.6111)
-			setsBtn.AnchorPoint = Vector2.new(1, 0)
-			setsBtn.Position = UDim2.fromScale(0.7206, 0.1944)
+			setsBtn.Size = UDim2.new(0, 22, 0, 22)
+			setsBtn.Position = UDim2.new(1, -95, 0, 7)
 			setsBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
 			setsBtn.BorderSizePixel = 0
 			setsBtn.Text = ICONS.Settings
@@ -1279,9 +1269,8 @@ local function updateActiveViewport()
 			end)
 			
 			local removeBtn = Instance.new("TextButton")
-			removeBtn.Size = UDim2.fromScale(0.1765, 0.6111)
-			removeBtn.AnchorPoint = Vector2.new(1, 0)
-			removeBtn.Position = UDim2.fromScale(0.98, 0.1944)
+			removeBtn.Size = UDim2.new(0, 60, 0, 22)
+			removeBtn.Position = UDim2.new(1, -68, 0, 7)
 			removeBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
 			removeBtn.BorderSizePixel = 0
 			removeBtn.Text = "Remove"
@@ -1325,15 +1314,15 @@ local function updateViewport()
 			local inst = node.Info
 			local depth = node.Depth
 			local row = getRowFromPool()
-			row.Position = UDim2.fromScale(0, (i - 1) * 0.05)
+			row.Position = UDim2.new(0, 0, 0, (i - 1) * 20)
 			
-			local padding = depth * 0.0588
+			local padding = depth * 20
 			local isContainer = inst:IsA("Folder") or inst:IsA("Model")
 			local hasChildren = inst:FindFirstChildWhichIsA("Instance") ~= nil
 
 			local expandBtn = row:FindFirstChild("Expand")
 			if expandBtn then
-				expandBtn.Position = UDim2.fromScale(padding, 0)
+				expandBtn.Position = UDim2.new(0, padding, 0, 0)
 				if isContainer and hasChildren then
 					expandBtn.Text = expandedNodes[inst] and "v" or ">"
 				else
@@ -1343,14 +1332,14 @@ local function updateViewport()
 
 			local iconLabel = row:FindFirstChild("Icon")
 			if iconLabel then
-				iconLabel.Position = UDim2.fromScale(padding + 0.0588, 0)
+				iconLabel.Position = UDim2.new(0, padding + 20, 0, 0)
 				iconLabel.Text = getIcon(inst)
 			end
 
 			local nameBtn = row:FindFirstChild("ItemName")
 			if nameBtn then
-				nameBtn.Size = UDim2.fromScale(1 - (padding + 0.2353), 1)
-				nameBtn.Position = UDim2.fromScale(padding + 0.1176, 0)
+				nameBtn.Size = UDim2.new(1, -(padding + 80), 1, 0)
+				nameBtn.Position = UDim2.new(0, padding + 40, 0, 0)
 				nameBtn.Text = inst.Name
 			end
 
@@ -1431,7 +1420,7 @@ refreshTree = function()
 		buildFlatList(currentFlatList, child, 0)
 	end
 	
-	explorerScroll.CanvasSize = UDim2.fromScale(0, #currentFlatList * 0.05)
+	explorerScroll.CanvasSize = UDim2.new(0, 0, 0, #currentFlatList * 20)
 	updateViewport()
 end
 
@@ -1468,7 +1457,7 @@ refreshActiveList = function()
 	
 	table.sort(activeFlatList, function(a,b) return a.Name < b.Name end)
 	
-	activeScroll.CanvasSize = UDim2.fromScale(0, #activeFlatList * 0.1)
+	activeScroll.CanvasSize = UDim2.new(0, 0, 0, #activeFlatList * 40)
 	updateActiveViewport()
 end
 
