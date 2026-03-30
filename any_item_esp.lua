@@ -803,13 +803,15 @@ local function toggleMinimize()
 		settingsFrame.Visible = false
 		
 		mainFrame.AnchorPoint = Vector2.new(1, 0)
-		mainFrame.Size = UDim2.fromScale(0.1771, 0.0296) -- 340/1920, 32/1080
-		mainFrame.Position = UDim2.fromScale(0.98, 0.02) -- Top-right corner
+		mainFrame.Size = UDim2.fromScale(0.11, 0.0296) -- Smaller width to remove filler
+		mainFrame.Position = UDim2.fromScale(0.98, 0.02)
+		header.Size = UDim2.fromScale(1, 1) -- Ensure header fills frame in minimized state
 		minButton.Text = "+"
 	else
 		mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 		mainFrame.Size = UDim2.fromScale(0.1771, 0.4444)
 		mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+		header.Size = UDim2.fromScale(1, 0.0667) -- Restore header size
 		minButton.Text = "−"
 		if currentTab == "Settings" then 
 			settingsFrame.Visible = true 
@@ -919,7 +921,7 @@ local function createEsp(instance, source)
 	
 	if rootPart then
 		local bg = Instance.new("BillboardGui")
-		bg.Size = UDim2.fromOffset(100, 30)
+		bg.Size = UDim2.fromScale(0.052, 0.027)
 		bg.AlwaysOnTop = true
 		bg.Name = "ESPTag"
 		bg.Adornee = instance
