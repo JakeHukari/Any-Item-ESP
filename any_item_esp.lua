@@ -57,9 +57,11 @@ local expandedNodes = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean
 local espTargets = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean } (Manual Toggles)
 local targetSettings = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Color = Color3, Rainbow = boolean } }
 local watchedFolders = setmetatable({}, {__mode = "k"}) -- { [Instance] = Connection } (Folder Watch)
+local watchedFolderCount = 0
 local espObjects = setmetatable({}, {__mode = "k"}) -- { [Instance] = {GUI, Highlight, Source, Root} }
 local espObjectCount = 0
 local activeHighlights = {} -- List of instances with active Highlights
+local activeHighlightsSet = {} -- { [Instance] = true } for O(1) lookup
 local searchText = ""
 local currentTab = "Explorer" -- "Explorer", "Active", "Settings"
 local isRendering = false
@@ -67,19 +69,16 @@ local renderRequest = 0
 local searchDebounceToken = 0
 
 -- Connection Manager (fixes memory leaks)
-local connections = {}
+local connections = {} -- { [RBXScriptConnection] = true }
 local function addConnection(conn)
-	table.insert(connections, conn)
+	connections[conn] = true
 	return conn
 end
 
 local function removeConnection(conn)
 	if not conn then return end
 	if conn.Connected then conn:Disconnect() end
-	local idx = table.find(connections, conn)
-	if idx then
-		table.remove(connections, idx)
-	end
+	connections[conn] = nil
 end
 
 -- Centralized Drag Manager
@@ -124,20 +123,39 @@ local function UnloadScript(screenGui)
 	end
 	
 	-- Cleanup Watched Folder Connections
-	for _, conn in pairs(watchedFolders) do
-		if conn then conn:Disconnect() end
+	for _, data in pairs(watchedFolders) do
+		if type(data) == "table" then
+			if data.ChildConn then data.ChildConn:Disconnect() end
+			if data.DestroyConn then data.DestroyConn:Disconnect() end
+		elseif data then
+			data:Disconnect()
+		end
 	end
 	
 	-- Cleanup ALL tracked connections (fixes memory leak)
-	for _, conn in ipairs(connections) do
-		if conn and conn.Connected then conn:Disconnect() end
+	for conn in pairs(connections) do
+		if conn.Connected then conn:Disconnect() end
+	end
+	
+	-- Cleanup pooled row connections
+	if activeRowConns then
+		for row, conns in pairs(activeRowConns) do
+			for _, conn in ipairs(conns) do
+				if conn.Connected then conn:Disconnect() end
+			end
+		end
+		table.clear(activeRowConns)
 	end
 	
 	table.clear(connections)
 	table.clear(espObjects)
 	table.clear(activeHighlights)
+	table.clear(activeHighlightsSet)
 	table.clear(watchedFolders)
 	table.clear(espTargets)
+	
+	watchedFolderCount = 0
+	espObjectCount = 0
 
 	-- Allow re-execution
 	if rawget(globalEnv, "AnyItemESP") then
@@ -281,9 +299,10 @@ statusLabel.TextSize = 11
 statusLabel.Parent = statusBar
 
 local function updateStatusBar()
-	statusLabel.Text = string.format("ESP: %d | Highlights: %d/%d | Watching: %d folders", 
-		espObjectCount, #activeHighlights, SETTINGS.MaxHighlights, 
-		(function() local c = 0 for _ in pairs(watchedFolders) do c = c + 1 end return c end)())
+	local highlightsCount = #activeHighlights
+	local statusText = string.format("ESP: %d | Highlights: %d/%d | Watching: %d folders", 
+		espObjectCount, highlightsCount, SETTINGS.MaxHighlights, watchedFolderCount)
+	if statusLabel.Text ~= statusText then statusLabel.Text = statusText end
 end
 
 -- Content Area
@@ -886,11 +905,12 @@ local function removeEsp(instance)
 			objs.Highlight:Destroy() 
 		end
 		
-		for i, inst in ipairs(activeHighlights) do
-			if inst == instance then
-				table.remove(activeHighlights, i)
-				break
+		if activeHighlightsSet[instance] then
+			local idx = table.find(activeHighlights, instance)
+			if idx then
+				table.remove(activeHighlights, idx)
 			end
+			activeHighlightsSet[instance] = nil
 		end
 		espObjects[instance] = nil
 		espObjectCount = math.max(0, espObjectCount - 1)
@@ -952,9 +972,11 @@ local function createEsp(instance, source)
 			hl.FillTransparency = 0.6
 			hl.Parent = PLAYER_GUI
 			table.insert(activeHighlights, instance)
+			activeHighlightsSet[instance] = true
 		else
 			-- Recycle
 			local old = table.remove(activeHighlights, 1)
+			if old then activeHighlightsSet[old] = nil end
 			if espObjects[old] and espObjects[old].Highlight then
 				espObjects[old].Highlight:Destroy()
 				espObjects[old].Highlight = nil
@@ -966,6 +988,7 @@ local function createEsp(instance, source)
 			hl.FillTransparency = 0.6
 			hl.Parent = PLAYER_GUI
 			table.insert(activeHighlights, instance)
+			activeHighlightsSet[instance] = true
 		end
 		
 		local objs = { GUI = bg, Highlight = hl, Label = tl, Source = source, Root = rootPart }
@@ -1000,20 +1023,39 @@ local function toggleEsp(instance, forceState)
 	if isContainer then
 		if newState then
 			if not watchedFolders[instance] then
+				watchedFolderCount = watchedFolderCount + 1
 				for _, child in pairs(instance:GetChildren()) do
 					if child:IsA("Model") or child:IsA("BasePart") then createEsp(child, instance) end
 				end
-				local conn = addConnection(instance.ChildAdded:Connect(function(child)
+				local childConn = instance.ChildAdded:Connect(function(child)
 					if not ALIVE then return end
 					if child:IsA("Model") or child:IsA("BasePart") then
 						task.defer(function() createEsp(child, instance) end)
 					end
-				end))
-				watchedFolders[instance] = conn
+				end)
+				addConnection(childConn)
+
+				local destroyConn
+				destroyConn = instance.Destroying:Connect(function()
+					if watchedFolders[instance] then
+						toggleEsp(instance, false)
+					end
+					removeConnection(destroyConn)
+				end)
+				addConnection(destroyConn)
+
+				watchedFolders[instance] = { ChildConn = childConn, DestroyConn = destroyConn }
 			end
 		else
-			if watchedFolders[instance] then
-				removeConnection(watchedFolders[instance])
+			local data = watchedFolders[instance]
+			if data then
+				watchedFolderCount = math.max(0, watchedFolderCount - 1)
+				if type(data) == "table" then
+					removeConnection(data.ChildConn)
+					removeConnection(data.DestroyConn)
+				else
+					removeConnection(data)
+				end
 				watchedFolders[instance] = nil
 				for _, child in pairs(instance:GetChildren()) do
 					-- When removing container, check if child is not targeted individually?
@@ -1104,28 +1146,138 @@ local function releaseRowToPool(row)
 	table.insert(rowPool, row)
 end
 
+local activeRowPool = {}
+local function getActiveRowFromPool()
+	local row = table.remove(activeRowPool)
+	if row then
+		row.Visible = true
+		return row
+	end
+
+	row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 36)
+	row.BackgroundTransparency = 0
+	row.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+	addCorners(row, 4)
+
+	local indColor = Instance.new("Frame")
+	indColor.Name = "IndColor"
+	indColor.Size = UDim2.new(0, 4, 1, -8)
+	indColor.Position = UDim2.new(0, 4, 0, 4)
+	indColor.BorderSizePixel = 0
+	indColor.Parent = row
+	addCorners(indColor, 2)
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Name = "ItemName"
+	lbl.Size = UDim2.new(1, -150, 1, 0)
+	lbl.Position = UDim2.new(0, 14, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.TextColor3 = Color3.fromRGB(220, 220, 225)
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Font = FONT
+	lbl.TextSize = 13
+	lbl.TextTruncate = Enum.TextTruncate.AtEnd
+	lbl.Parent = row
+
+	-- Teleport Button
+	local teleportBtn = Instance.new("TextButton")
+	teleportBtn.Name = "TeleportBtn"
+	teleportBtn.Size = UDim2.new(0, 22, 0, 22)
+	teleportBtn.Position = UDim2.new(1, -145, 0, 7)
+	teleportBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 100)
+	teleportBtn.BorderSizePixel = 0
+	teleportBtn.Text = "TP"
+	teleportBtn.TextColor3 = Color3.new(1, 1, 1)
+	teleportBtn.Font = FONT
+	teleportBtn.TextSize = 12
+	teleportBtn.Parent = row
+	addCorners(teleportBtn, 4)
+
+	-- Copy Path Button
+	local copyBtn = Instance.new("TextButton")
+	copyBtn.Name = "CopyBtn"
+	copyBtn.Size = UDim2.new(0, 22, 0, 22)
+	copyBtn.Position = UDim2.new(1, -120, 0, 7)
+	copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+	copyBtn.BorderSizePixel = 0
+	copyBtn.Text = "📋"
+	copyBtn.TextColor3 = Color3.new(1, 1, 1)
+	copyBtn.Font = FONT
+	copyBtn.TextSize = 12
+	copyBtn.Parent = row
+	addCorners(copyBtn, 4)
+
+	local setsBtn = Instance.new("TextButton")
+	setsBtn.Name = "SettingsBtn"
+	setsBtn.Size = UDim2.new(0, 22, 0, 22)
+	setsBtn.Position = UDim2.new(1, -95, 0, 7)
+	setsBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+	setsBtn.BorderSizePixel = 0
+	setsBtn.Text = ICONS.Settings
+	setsBtn.TextColor3 = Color3.new(1, 1, 1)
+	setsBtn.Font = FONT
+	setsBtn.TextSize = 12
+	setsBtn.Parent = row
+	addCorners(setsBtn, 4)
+
+	local removeBtn = Instance.new("TextButton")
+	removeBtn.Name = "RemoveBtn"
+	removeBtn.Size = UDim2.new(0, 60, 0, 22)
+	removeBtn.Position = UDim2.new(1, -68, 0, 7)
+	removeBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+	removeBtn.BorderSizePixel = 0
+	removeBtn.Text = "Remove"
+	removeBtn.TextColor3 = Color3.new(1, 1, 1)
+	removeBtn.Font = FONT_BOLD
+	removeBtn.TextSize = 11
+	removeBtn.Parent = row
+	addCorners(removeBtn, 4)
+
+	return row
+end
+
+local function releaseActiveRowToPool(row)
+	row.Visible = false
+	row.Parent = nil
+	table.insert(activeRowPool, row)
+end
+
+-- Node pool for buildFlatList to reduce table churn
+local nodePool = {}
+local function getNode(info, depth)
+	local node = table.remove(nodePool)
+	if node then
+		node.Info = info
+		node.Depth = depth
+		return node
+	end
+	return {Info = info, Depth = depth}
+end
+
+local function releaseNodeToPool(node)
+	node.Info = nil
+	table.insert(nodePool, node)
+end
+
 local function buildFlatList(list, instance, depth)
 	if not ALIVE or depth > 50 or #list > 5000 then return end
-	local query = searchText:lower()
+	local query = searchText ~= "" and searchText:lower() or nil
 	local matches = true
-	if query ~= "" then
-		if not instance.Name:lower():find(query) then matches = false end
+	if query then
+		if not instance.Name:lower():find(query, 1, true) then matches = false end
 	end
 	
-	local shouldShow = false
-	if query ~= "" then
-		if matches then shouldShow = true end
-	else
-		shouldShow = true
-	end
+	local shouldShow = not query or matches
 	
 	if shouldShow then
-		table.insert(list, {Info = instance, Depth = depth})
+		table.insert(list, getNode(instance, depth))
 	end
 	
-	if (query == "" and expandedNodes[instance]) or (query ~= "" and matches) then
-		for _, child in pairs(instance:GetChildren()) do
-			buildFlatList(list, child, depth + 1)
+	if (not query and expandedNodes[instance]) or (query and matches) then
+		local children = instance:GetChildren()
+		for i = 1, #children do
+			buildFlatList(list, children[i], depth + 1)
 		end
 	end
 end
@@ -1135,6 +1287,9 @@ local activeRows = {} -- { [index] = Frame }
 
 local activeFlatList = {}
 local activeTabRows = {} -- { [index] = Frame }
+
+-- Event connections for active rows (shared to avoid closure churn)
+local activeRowConns = setmetatable({}, {__mode = "k"}) -- { [Row] = { Conns... } }
 
 local function updateActiveViewport()
 	if not ALIVE then return end
@@ -1147,7 +1302,7 @@ local function updateActiveViewport()
 	-- Release out of view rows
 	for idx, row in pairs(activeTabRows) do
 		if idx < startIdx or idx > endIdx then
-			releaseRowToPool(row)
+			releaseActiveRowToPool(row)
 			activeTabRows[idx] = nil
 		end
 	end
@@ -1156,135 +1311,82 @@ local function updateActiveViewport()
 	for i = startIdx, endIdx do
 		local inst = activeFlatList[i]
 		if inst and not activeTabRows[i] then
-			local row = getRowFromPool()
-			row.Size = UDim2.new(1, 0, 0, 36)
-			row.Position = UDim2.new(0, 0, 0, (i - 1) * 40)
-			row.BackgroundTransparency = 0
-			row.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-			addCorners(row, 4)
-
-			-- We need to handle the specific layout of the active list row here
-			-- To keep getRowFromPool generic, we should probably clear and rebuild it
-			-- or better yet, make a separate pool for active rows if they are very different.
-			-- Let's repurpose rowPool items but we must be careful.
-			-- Actually, it's safer to have a separate pool or just customize it here.
+			local row = getActiveRowFromPool()
+			local expectedPos = UDim2.new(0, 0, 0, (i - 1) * 40)
+			if row.Position ~= expectedPos then row.Position = expectedPos end
 			
-			-- For now, let's clear existing children of row if it's from explorer pool
-			for _, c in pairs(row:GetChildren()) do
-				if not c:IsA("UICorner") then c:Destroy() end
+			local s = targetSettings[inst]
+			local color = s and s.Color or Color3.new(1,1,1)
+			local indColor = row:FindFirstChild("IndColor")
+			if indColor and indColor.BackgroundColor3 ~= color then
+				indColor.BackgroundColor3 = color
+			end
+			
+			local lbl = row:FindFirstChild("ItemName")
+			if lbl then
+				local expectedText = inst.Name .. " (" .. inst.ClassName .. ")"
+				if lbl.Text ~= expectedText then lbl.Text = expectedText end
 			end
 
-			local s = targetSettings[inst]
-			local indColor = Instance.new("Frame")
-			indColor.Size = UDim2.new(0, 4, 1, -8)
-			indColor.Position = UDim2.new(0, 4, 0, 4)
-			indColor.BackgroundColor3 = s and s.Color or Color3.new(1,1,1)
-			indColor.BorderSizePixel = 0
-			indColor.Parent = row
-			addCorners(indColor, 2)
-			
-			local lbl = Instance.new("TextLabel")
-			lbl.Size = UDim2.new(1, -150, 1, 0)
-			lbl.Position = UDim2.new(0, 14, 0, 0)
-			lbl.BackgroundTransparency = 1
-			lbl.Text = inst.Name .. " (" .. inst.ClassName .. ")"
-			lbl.TextColor3 = Color3.fromRGB(220, 220, 225)
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.Font = FONT
-			lbl.TextSize = 13
-			lbl.TextTruncate = Enum.TextTruncate.AtEnd
-			lbl.Parent = row
-			
-			-- Teleport Button
-			local teleportBtn = Instance.new("TextButton")
-			teleportBtn.Size = UDim2.new(0, 22, 0, 22)
-			teleportBtn.Position = UDim2.new(1, -145, 0, 7)
-			teleportBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 100)
-			teleportBtn.BorderSizePixel = 0
-			teleportBtn.Text = "TP"
-			teleportBtn.TextColor3 = Color3.new(1, 1, 1)
-			teleportBtn.Font = FONT
-			teleportBtn.TextSize = 12
-			teleportBtn.Parent = row
-			addCorners(teleportBtn, 4)
-			teleportBtn.MouseButton1Click:Connect(function()
-				local char = PLAYER.Character
-				if char and char:FindFirstChild("HumanoidRootPart") then
-					local targetPos
-					if inst:IsA("Model") then
-						local part = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
-						if part then targetPos = part.Position end
-					elseif inst:IsA("BasePart") then
-						targetPos = inst.Position
+			-- Setup connections if not already present
+			if not activeRowConns[row] then
+				local rowConns = {}
+				
+				local tpBtn = row:FindFirstChild("TeleportBtn")
+				table.insert(rowConns, tpBtn.MouseButton1Click:Connect(function()
+					local targetInst = row:GetAttribute("Target")
+					if not targetInst then return end
+					local char = PLAYER.Character
+					if char and char:FindFirstChild("HumanoidRootPart") then
+						local targetPos
+						if targetInst:IsA("Model") then
+							local part = targetInst.PrimaryPart or targetInst:FindFirstChildWhichIsA("BasePart", true)
+							if part then targetPos = part.Position end
+						elseif targetInst:IsA("BasePart") then
+							targetPos = targetInst.Position
+						end
+						if targetPos then
+							char.HumanoidRootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
+						end
 					end
-					if targetPos then
-						char.HumanoidRootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
-					end
-				end
-			end)
-			
-			-- Copy Path Button
-			local copyBtn = Instance.new("TextButton")
-			copyBtn.Size = UDim2.new(0, 22, 0, 22)
-			copyBtn.Position = UDim2.new(1, -120, 0, 7)
-			copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-			copyBtn.BorderSizePixel = 0
-			copyBtn.Text = "📋"
-			copyBtn.TextColor3 = Color3.new(1, 1, 1)
-			copyBtn.Font = FONT
-			copyBtn.TextSize = 12
-			copyBtn.Parent = row
-			addCorners(copyBtn, 4)
-			copyBtn.MouseButton1Click:Connect(function()
-				local path = inst:GetFullName()
-				if setclipboard then
-					setclipboard(path)
-				elseif Clipboard and Clipboard.set then
-					Clipboard.set(path)
-				end
-				copyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
-				task.delay(0.5, function()
-					if copyBtn and copyBtn.Parent then
-						copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-					end
-				end)
-			end)
-			
-			local setsBtn = Instance.new("TextButton")
-			setsBtn.Size = UDim2.new(0, 22, 0, 22)
-			setsBtn.Position = UDim2.new(1, -95, 0, 7)
-			setsBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
-			setsBtn.BorderSizePixel = 0
-			setsBtn.Text = ICONS.Settings
-			setsBtn.TextColor3 = Color3.new(1, 1, 1)
-			setsBtn.Font = FONT
-			setsBtn.TextSize = 12
-			setsBtn.Parent = row
-			addCorners(setsBtn, 4)
-			setsBtn.MouseButton1Click:Connect(function()
-				currentSelection = inst
-				selTitle.Text = "Settings: " .. inst.Name
-				selectionSettingsFrame.Visible = true
-				updateSelectionUI()
-			end)
-			
-			local removeBtn = Instance.new("TextButton")
-			removeBtn.Size = UDim2.new(0, 60, 0, 22)
-			removeBtn.Position = UDim2.new(1, -68, 0, 7)
-			removeBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-			removeBtn.BorderSizePixel = 0
-			removeBtn.Text = "Remove"
-			removeBtn.TextColor3 = Color3.new(1, 1, 1)
-			removeBtn.Font = FONT_BOLD
-			removeBtn.TextSize = 11
-			removeBtn.Parent = row
-			addCorners(removeBtn, 4)
-			
-			removeBtn.MouseButton1Click:Connect(function()
-				toggleEsp(inst, false)
-				-- list will be refreshed by toggleEsp calling refreshActiveList
-			end)
+				end))
 
+				local copyBtn = row:FindFirstChild("CopyBtn")
+				table.insert(rowConns, copyBtn.MouseButton1Click:Connect(function()
+					local targetInst = row:GetAttribute("Target")
+					if not targetInst then return end
+					local path = targetInst:GetFullName()
+					if setclipboard then setclipboard(path)
+					elseif Clipboard and Clipboard.set then Clipboard.set(path) end
+					copyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+					task.delay(0.5, function()
+						if copyBtn and copyBtn.Parent then
+							copyBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+						end
+					end)
+				end))
+
+				local setsBtn = row:FindFirstChild("SettingsBtn")
+				table.insert(rowConns, setsBtn.MouseButton1Click:Connect(function()
+					local targetInst = row:GetAttribute("Target")
+					if not targetInst then return end
+					currentSelection = targetInst
+					selTitle.Text = "Settings: " .. targetInst.Name
+					selectionSettingsFrame.Visible = true
+					updateSelectionUI()
+				end))
+
+				local removeBtn = row:FindFirstChild("RemoveBtn")
+				table.insert(rowConns, removeBtn.MouseButton1Click:Connect(function()
+					local targetInst = row:GetAttribute("Target")
+					if not targetInst then return end
+					toggleEsp(targetInst, false)
+				end))
+
+				activeRowConns[row] = rowConns
+			end
+			
+			row:SetAttribute("Target", inst)
 			row.Parent = activeScroll
 			activeTabRows[i] = row
 		end
@@ -1294,7 +1396,7 @@ end
 local function updateViewport()
 	if not ALIVE then return end
 	local viewHeight = explorerScroll.AbsoluteSize.Y
-	if viewHeight == 0 then viewHeight = 400 end -- Default to a reasonable height if not yet rendered
+	if viewHeight == 0 then viewHeight = 400 end
 	local scrollPos = explorerScroll.CanvasPosition.Y
 	local startIdx = math.floor(scrollPos / 20) + 1
 	local endIdx = math.ceil((scrollPos + viewHeight) / 20)
@@ -1314,7 +1416,8 @@ local function updateViewport()
 			local inst = node.Info
 			local depth = node.Depth
 			local row = getRowFromPool()
-			row.Position = UDim2.new(0, 0, 0, (i - 1) * 20)
+			local expectedPos = UDim2.new(0, 0, 0, (i - 1) * 20)
+			if row.Position ~= expectedPos then row.Position = expectedPos end
 			
 			local padding = depth * 20
 			local isContainer = inst:IsA("Folder") or inst:IsA("Model")
@@ -1322,38 +1425,50 @@ local function updateViewport()
 
 			local expandBtn = row:FindFirstChild("Expand")
 			if expandBtn then
-				expandBtn.Position = UDim2.new(0, padding, 0, 0)
-				if isContainer and hasChildren then
-					expandBtn.Text = expandedNodes[inst] and "v" or ">"
-				else
-					expandBtn.Text = ""
-				end
+				local expectedExpandPos = UDim2.new(0, padding, 0, 0)
+				if expandBtn.Position ~= expectedExpandPos then expandBtn.Position = expectedExpandPos end
+				
+				local expectedText = (isContainer and hasChildren) and (expandedNodes[inst] and "v" or ">") or ""
+				if expandBtn.Text ~= expectedText then expandBtn.Text = expectedText end
 			end
 
 			local iconLabel = row:FindFirstChild("Icon")
 			if iconLabel then
-				iconLabel.Position = UDim2.new(0, padding + 20, 0, 0)
-				iconLabel.Text = getIcon(inst)
+				local expectedIconPos = UDim2.new(0, padding + 20, 0, 0)
+				if iconLabel.Position ~= expectedIconPos then iconLabel.Position = expectedIconPos end
+				
+				local expectedIcon = getIcon(inst)
+				if iconLabel.Text ~= expectedIcon then iconLabel.Text = expectedIcon end
 			end
 
 			local nameBtn = row:FindFirstChild("ItemName")
 			if nameBtn then
-				nameBtn.Size = UDim2.new(1, -(padding + 80), 1, 0)
-				nameBtn.Position = UDim2.new(0, padding + 40, 0, 0)
-				nameBtn.Text = inst.Name
+				local expectedNameSize = UDim2.new(1, -(padding + 80), 1, 0)
+				if nameBtn.Size ~= expectedNameSize then nameBtn.Size = expectedNameSize end
+				
+				local expectedNamePos = UDim2.new(0, padding + 40, 0, 0)
+				if nameBtn.Position ~= expectedNamePos then nameBtn.Position = expectedNamePos end
+				
+				if nameBtn.Text ~= inst.Name then nameBtn.Text = inst.Name end
 			end
 
 			local espBtn = row:FindFirstChild("EspToggle")
-			local isActive = getEspState(inst)
-			espBtn.Text = isActive and ICONS.EyeOn or ICONS.EyeOff
+			if espBtn then
+				local isActive = getEspState(inst)
+				local expectedEspText = isActive and ICONS.EyeOn or ICONS.EyeOff
+				if espBtn.Text ~= expectedEspText then espBtn.Text = expectedEspText end
+			end
 
 			row.Parent = explorerScroll
 			activeRows[i] = row
 		elseif node and activeRows[i] then
 			-- Already exists, just update toggle state in case it changed
-			local espBtn = activeRows[i].EspToggle
-			local isActive = getEspState(node.Info)
-			espBtn.Text = isActive and ICONS.EyeOn or ICONS.EyeOff
+			local espBtn = activeRows[i]:FindFirstChild("EspToggle")
+			if espBtn then
+				local isActive = getEspState(node.Info)
+				local expectedEspText = isActive and ICONS.EyeOn or ICONS.EyeOff
+				if espBtn.Text ~= expectedEspText then espBtn.Text = expectedEspText end
+			end
 		end
 	end
 end
@@ -1415,7 +1530,12 @@ refreshTree = function()
 	end
 	table.clear(activeRows)
 	
-	currentFlatList = {}
+	-- Return nodes to pool
+	for i = 1, #currentFlatList do
+		releaseNodeToPool(currentFlatList[i])
+	end
+	table.clear(currentFlatList)
+
 	for _, child in pairs(rootDirectory:GetChildren()) do
 		buildFlatList(currentFlatList, child, 0)
 	end
@@ -1445,7 +1565,7 @@ refreshActiveList = function()
 	
 	-- Clear active rows
 	for idx, row in pairs(activeTabRows) do
-		releaseRowToPool(row)
+		releaseActiveRowToPool(row)
 	end
 	table.clear(activeTabRows)
 	
@@ -1476,38 +1596,30 @@ task.spawn(function()
 			if hrp then playerPos = hrp.Position end
 		end
 		
+		local showNames = SETTINGS.ShowNames
+		local verticalOffset = SETTINGS.VerticalOffset
+		local expectedOffset = Vector3.new(0, verticalOffset, 0)
+
 		for inst, objs in pairs(espObjects) do
-			if inst and inst.Parent then
+			if inst.Parent then
 				-- Resolve Settings
 				local s = targetSettings[objs.Source]
-				local isRainbow = s and s.Rainbow
-				local color = s and s.Color or Color3.new(1,0,0)
-				if isRainbow then color = rainbowColor end
+				local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
 				
 				local label = objs.Label
 				if label then 
-					if label.TextColor3 ~= color then
-						label.TextColor3 = color 
-					end
-					if label.Visible ~= SETTINGS.ShowNames then
-						label.Visible = SETTINGS.ShowNames
-					end
+					if label.TextColor3 ~= color then label.TextColor3 = color end
+					if label.Visible ~= showNames then label.Visible = showNames end
 					
 					-- Update distance display (Staggered every 5 frames)
-					if updateCounter % 5 == 0 then
-						if playerPos and SETTINGS.ShowNames then
-							local targetPos = objs.Root and objs.Root.Position
-							if targetPos then
-								local dist = math.floor((playerPos - targetPos).Magnitude)
-								local newText = inst.Name .. " [" .. dist .. "m]"
-								if label.Text ~= newText then
-									label.Text = newText
-								end
-							else
-								if label.Text ~= inst.Name then
-									label.Text = inst.Name
-								end
-							end
+					if updateCounter % 5 == 0 and showNames then
+						local targetPos = objs.Root and objs.Root.Position
+						if playerPos and targetPos then
+							local dist = math.floor((playerPos - targetPos).Magnitude)
+							local newText = inst.Name .. " [" .. dist .. "m]"
+							if label.Text ~= newText then label.Text = newText end
+						elseif label.Text ~= inst.Name then
+							label.Text = inst.Name
 						end
 					end
 				end
@@ -1518,20 +1630,13 @@ task.spawn(function()
 						hl.FillColor = color
 						hl.OutlineColor = color
 					end
-					if hl.OutlineTransparency ~= 0.5 then
-						hl.OutlineTransparency = 0.5
-					end
+					if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
 				end
 
 				local gui = objs.GUI
 				if gui then
-					if gui.Enabled ~= true then
-						gui.Enabled = true
-					end
-					local expectedOffset = Vector3.new(0, SETTINGS.VerticalOffset, 0)
-					if gui.StudsOffset ~= expectedOffset then
-						gui.StudsOffset = expectedOffset
-					end
+					if not gui.Enabled then gui.Enabled = true end
+					if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
 				end
 			else
 				if espTargets[inst] then toggleEsp(inst, false) end
