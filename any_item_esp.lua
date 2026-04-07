@@ -58,6 +58,10 @@ function Janitor:_cleanupTask(task, method)
 		task()
 	elseif method then
 		task[method](task)
+	elseif typeof(task) == "RBXScriptConnection" then
+		task:Disconnect()
+	elseif typeof(task) == "Instance" then
+		task:Destroy()
 	elseif task.Disconnect then
 		task:Disconnect()
 	elseif task.Destroy then
@@ -1657,14 +1661,14 @@ task.spawn(function()
 		local expectedOffset = Vector3.new(0, verticalOffset, 0)
 
 		for inst, objs in pairs(espObjects) do
-			if inst.Parent then
+			if inst and inst.Parent then
 				-- Resolve Settings
 				local source = objs.Source or inst
 				local s = targetSettings[source]
 				local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
 				
 				local label = objs.Label
-				if label then 
+				if label and label.Parent then 
 					if label.TextColor3 ~= color then label.TextColor3 = color end
 					if label.Visible ~= showNames then label.Visible = showNames end
 					
@@ -1683,7 +1687,7 @@ task.spawn(function()
 				end
 
 				local hl = objs.Highlight
-				if hl then
+				if hl and hl.Parent then
 					if hl.FillColor ~= color then
 						hl.FillColor = color
 					end
@@ -1694,12 +1698,12 @@ task.spawn(function()
 				end
 
 				local gui = objs.GUI
-				if gui then
+				if gui and gui.Parent then
 					if not gui.Enabled then gui.Enabled = true end
 					if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
 				end
 			else
-				if espTargets[inst] then toggleEsp(inst, false) end
+				if inst and espTargets[inst] then toggleEsp(inst, false) end
 				removeEsp(inst)
 			end
 		end
