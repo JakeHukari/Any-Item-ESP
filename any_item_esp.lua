@@ -111,7 +111,7 @@ local watchedFolderCount = 0
 local espObjects = setmetatable({}, {__mode = "k"}) -- { [Instance] = {GUI, Highlight, Source, Root} }
 local espObjectCount = 0
 local activeHighlights = {} -- List of instances with active Highlights
-local activeHighlightsSet = {} -- { [Instance] = true } for O(1) lookup
+local activeHighlightsSet = setmetatable({}, {__mode = "k"}) -- { [Instance] = true } for O(1) lookup
 local searchText = ""
 local currentTab = "Explorer" -- "Explorer", "Active", "Settings"
 local isRendering = false
@@ -1025,7 +1025,7 @@ local function createEsp(instance, source)
 			hl.OutlineColor = Color3.new(1, 1, 1)
 			hl.FillTransparency = 0.6
 			hl.Parent = PLAYER_GUI
-			janitor:Add(hl)
+			janitor:Add(hl, nil, "Highlight")
 			table.insert(activeHighlights, instance)
 			activeHighlightsSet[instance] = true
 		else
@@ -1060,9 +1060,6 @@ local function createEsp(instance, source)
 		espObjects[instance] = objs
 		espObjectCount = espObjectCount + 1
 
-		janitor:Add(instance.Destroying:Connect(function()
-			removeEsp(instance)
-		end))
 	end
 end
 
@@ -1099,15 +1096,7 @@ local function toggleEsp(instance, forceState)
 					end
 				end))
 
-				local destroyConn
-				destroyConn = addConnection(instance.Destroying:Connect(function()
-					if watchedFolders[instance] then
-						toggleEsp(instance, false)
-					end
-					removeConnection(destroyConn)
-				end))
-
-				watchedFolders[instance] = { ChildConn = childConn, DestroyConn = destroyConn }
+				watchedFolders[instance] = { ChildConn = childConn }
 			end
 		else
 			local data = watchedFolders[instance]
@@ -1661,7 +1650,7 @@ task.spawn(function()
 		local expectedOffset = Vector3.new(0, verticalOffset, 0)
 
 		for inst, objs in pairs(espObjects) do
-			if inst and inst.Parent then
+			if inst and inst:IsDescendantOf(game) then
 				-- Resolve Settings
 				local source = objs.Source or inst
 				local s = targetSettings[source]
@@ -1705,6 +1694,15 @@ task.spawn(function()
 			else
 				if inst and espTargets[inst] then toggleEsp(inst, false) end
 				removeEsp(inst)
+			end
+		end
+		
+		-- Periodic check for watched folders (Staggered every 20 frames)
+		if updateCounter % 20 == 0 then
+			for inst, _ in pairs(watchedFolders) do
+				if not inst:IsDescendantOf(game) then
+					toggleEsp(inst, false)
+				end
 			end
 		end
 		
