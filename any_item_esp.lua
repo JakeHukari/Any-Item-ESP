@@ -26,6 +26,52 @@ globalEnv.AnyItemESP = {
 	Active = true,
 }
 
+-- Janitor Class for robust cleanup
+local Janitor = {}
+Janitor.__index = Janitor
+
+function Janitor.new()
+	return setmetatable({
+		_tasks = {}
+	}, Janitor)
+end
+
+function Janitor:Add(task, method, name)
+	if name then
+		self:Remove(name)
+	end
+	local key = name or #self._tasks + 1
+	self._tasks[key] = {task, method}
+	return task
+end
+
+function Janitor:Remove(name)
+	local task = self._tasks[name]
+	if task then
+		self:_cleanupTask(task[1], task[2])
+		self._tasks[name] = nil
+	end
+end
+
+function Janitor:_cleanupTask(task, method)
+	if type(task) == "function" then
+		task()
+	elseif method then
+		task[method](task)
+	elseif task.Disconnect then
+		task:Disconnect()
+	elseif task.Destroy then
+		task:Destroy()
+	end
+end
+
+function Janitor:Cleanup()
+	for key, task in pairs(self._tasks) do
+		self:_cleanupTask(task[1], task[2])
+	end
+	table.clear(self._tasks)
+end
+
 -- Settings Defaults
 local SETTINGS = {
 	MaxHighlights = 50,
@@ -111,19 +157,25 @@ local COLOR_PRESETS = {
 	{Name = "White", Color = Color3.fromRGB(255, 255, 255)}
 }
 
+-- State Tables (Forward Declared for UnloadScript)
+local activeRowConns = setmetatable({}, {__mode = "k"})
+local activeRowPool = {}
+local rowPool = {}
+
 -- Cleanup Function
 local function UnloadScript(screenGui)
 	ALIVE = false
 	if screenGui then screenGui:Destroy() end
 	
-	-- Cleanup ESPs
+	-- Cleanup ESPs via their Janitors
 	for inst, objs in pairs(espObjects) do
-		if objs.GUI then objs.GUI:Destroy() end
-		if objs.Highlight then objs.Highlight:Destroy() end
+		if objs.Janitor then
+			objs.Janitor:Cleanup()
+		end
 	end
 	
 	-- Cleanup Watched Folder Connections
-	for _, data in pairs(watchedFolders) do
+	for inst, data in pairs(watchedFolders) do
 		if type(data) == "table" then
 			if data.ChildConn then data.ChildConn:Disconnect() end
 			if data.DestroyConn then data.DestroyConn:Disconnect() end
@@ -132,27 +184,29 @@ local function UnloadScript(screenGui)
 		end
 	end
 	
-	-- Cleanup ALL tracked connections (fixes memory leak)
+	-- Cleanup ALL tracked connections
 	for conn in pairs(connections) do
 		if conn.Connected then conn:Disconnect() end
 	end
 	
 	-- Cleanup pooled row connections
-	if activeRowConns then
-		for row, conns in pairs(activeRowConns) do
-			for _, conn in ipairs(conns) do
-				if conn.Connected then conn:Disconnect() end
-			end
+	for row, conns in pairs(activeRowConns) do
+		for _, conn in ipairs(conns) do
+			if conn.Connected then conn:Disconnect() end
 		end
-		table.clear(activeRowConns)
 	end
 	
+	-- Explicit Table Clearing to assist GC
 	table.clear(connections)
 	table.clear(espObjects)
 	table.clear(activeHighlights)
 	table.clear(activeHighlightsSet)
 	table.clear(watchedFolders)
 	table.clear(espTargets)
+	table.clear(targetSettings)
+	table.clear(activeRowConns)
+	table.clear(activeRowPool)
+	table.clear(rowPool)
 	
 	watchedFolderCount = 0
 	espObjectCount = 0
@@ -392,9 +446,9 @@ closeSelBtn.Text = "X"
 closeSelBtn.TextColor3 = Color3.new(1, 1, 1)
 closeSelBtn.Font = FONT_BOLD
 closeSelBtn.Parent = selectionSettingsFrame
-closeSelBtn.MouseButton1Click:Connect(function()
+addConnection(closeSelBtn.MouseButton1Click:Connect(function()
 	selectionSettingsFrame.Visible = false
-end)
+end))
 
 local currentSelection = nil -- The instance currently being edited
 
@@ -485,11 +539,11 @@ local function bindSlider(params, component)
 		updateSelectionUI()
 	end
 	
-	params.Btn.MouseButton1Down:Connect(function()
+	addConnection(params.Btn.MouseButton1Down:Connect(function()
 		local mouse = PLAYER:GetMouse()
 		updateColor(mouse.X)
 		activeDrag = { component = component, params = params, updateFn = updateColor }
-	end)
+	end))
 end
 
 -- Global drag handlers (registered once, tracked for cleanup)
@@ -509,12 +563,12 @@ bindSlider(rSlider, "R")
 bindSlider(gSlider, "G")
 bindSlider(bSlider, "B")
 
-rainbowToggleBtn.MouseButton1Click:Connect(function()
+addConnection(rainbowToggleBtn.MouseButton1Click:Connect(function()
 	if not currentSelection then return end
 	local s = targetSettings[currentSelection]
 	s.Rainbow = not s.Rainbow
 	updateSelectionUI()
-end)
+end))
 
 -- Color Presets UI
 local presetLabel = Instance.new("TextLabel")
@@ -549,7 +603,7 @@ for _, preset in ipairs(COLOR_PRESETS) do
 	addCorners(btn, 4)
 	addStroke(btn, Color3.fromRGB(50, 50, 50), 1)
 
-	btn.MouseButton1Click:Connect(function()
+	addConnection(btn.MouseButton1Click:Connect(function()
 		if not currentSelection then return end
 		local s = targetSettings[currentSelection]
 		if not s then return end
@@ -557,7 +611,7 @@ for _, preset in ipairs(COLOR_PRESETS) do
 		s.Color = preset.Color
 		s.Rainbow = false
 		updateSelectionUI()
-	end)
+	end))
 end
 
 local settingsListLayout = Instance.new("UIListLayout")
@@ -605,7 +659,7 @@ unloadBtn.TextColor3 = Color3.new(1, 1, 1)
 unloadBtn.Font = FONT_BOLD
 unloadBtn.TextSize = 12
 unloadBtn.Parent = unloadRow
-unloadBtn.MouseButton1Click:Connect(function() UnloadScript(screenGui) end)
+addConnection(unloadBtn.MouseButton1Click:Connect(function() UnloadScript(screenGui) end))
 
 -- 2. Rejoin
 local rejoinRow = createSettingRow("Rejoin Server", 2)
@@ -618,9 +672,9 @@ rejoinBtn.TextColor3 = Color3.new(1, 1, 1)
 rejoinBtn.Font = FONT_BOLD
 rejoinBtn.TextSize = 12
 rejoinBtn.Parent = rejoinRow
-rejoinBtn.MouseButton1Click:Connect(function() 
+addConnection(rejoinBtn.MouseButton1Click:Connect(function() 
 	TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, PLAYER)
-end)
+end))
 
 -- 3. Max Highlights
 local maxHighlightsRow = createSettingRow("Max Highlights", 3)
@@ -669,11 +723,11 @@ local function updateSettingsSlider(mouseX)
 	valLabel.Text = tostring(val)
 end
 
-sliderBtn.MouseButton1Down:Connect(function()
+addConnection(sliderBtn.MouseButton1Down:Connect(function()
 	local mouse = PLAYER:GetMouse()
 	updateSettingsSlider(mouse.X)
 	activeDrag = { component = "MaxHighlights", updateFn = updateSettingsSlider }
-end)
+end))
 
 -- 4. Vertical Offset
 local verticalOffsetRow = createSettingRow("Vertical Offset", 4)
@@ -721,11 +775,11 @@ local function updateVerticalOffsetSlider(mouseX)
 	vValLabel.Text = string.format("%.1f", val)
 end
 
-vSliderBtn.MouseButton1Down:Connect(function()
+addConnection(vSliderBtn.MouseButton1Down:Connect(function()
 	local mouse = PLAYER:GetMouse()
 	updateVerticalOffsetSlider(mouse.X)
 	activeDrag = { component = "VerticalOffset", updateFn = updateVerticalOffsetSlider }
-end)
+end))
 
 -- 5. Rainbow Mode (REMOVED GLOBAL)
 -- Kept empty or replaced/removed
@@ -758,7 +812,7 @@ local function switchTab(tab)
 	end
 end
 
-settingsButton.MouseButton1Click:Connect(function()
+addConnection(settingsButton.MouseButton1Click:Connect(function()
 	if currentTab == "Settings" then
 		switchTab("Explorer") -- Toggle Back
 	else
@@ -771,9 +825,9 @@ settingsButton.MouseButton1Click:Connect(function()
 		tabExplorer.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
 		tabActive.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
 	end
-end)
-tabExplorer.MouseButton1Click:Connect(function() switchTab("Explorer") end)
-tabActive.MouseButton1Click:Connect(function() switchTab("Active") end)
+end))
+addConnection(tabExplorer.MouseButton1Click:Connect(function() switchTab("Explorer") end))
+addConnection(tabActive.MouseButton1Click:Connect(function() switchTab("Active") end))
 
 local isMinimized = false
 local wasSelectionSettingsOpen = false
@@ -796,7 +850,10 @@ local function ensureWithinBounds()
 	local clampedX = math.clamp(currentX, minX, maxX)
 	local clampedY = math.clamp(currentY, minY, maxY)
 	
-	mainFrame.Position = UDim2.fromScale(clampedX / viewportSize.X, clampedY / viewportSize.Y)
+	local newPos = UDim2.fromScale(clampedX / viewportSize.X, clampedY / viewportSize.Y)
+	if mainFrame.Position ~= newPos then
+		mainFrame.Position = newPos
+	end
 end
 
 local function toggleMinimize()
@@ -838,7 +895,7 @@ local function toggleMinimize()
 	ensureWithinBounds()
 end
 
-minButton.MouseButton1Click:Connect(toggleMinimize)
+addConnection(minButton.MouseButton1Click:Connect(toggleMinimize))
 
 -- Keyboard Shortcut
 addConnection(UserInputService.InputBegan:Connect(function(input, processed)
@@ -864,12 +921,12 @@ addConnection(header.InputBegan:Connect(function(input)
 		)
 		
 		local connection
-		connection = input.Changed:Connect(function()
+		connection = addConnection(input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				isDragging = false
-				connection:Disconnect()
+				removeConnection(connection)
 			end
-		end)
+		end))
 	end
 end))
 
@@ -893,16 +950,8 @@ addConnection(camera:GetPropertyChangedSignal("ViewportSize"):Connect(ensureWith
 local function removeEsp(instance)
 	local objs = espObjects[instance]
 	if objs then
-		if objs.DestroyConn then
-			objs.DestroyConn:Disconnect()
-		end
-		if objs.GUI then 
-			objs.GUI.Adornee = nil
-			objs.GUI:Destroy() 
-		end
-		if objs.Highlight then 
-			objs.Highlight.Adornee = nil
-			objs.Highlight:Destroy() 
+		if objs.Janitor then
+			objs.Janitor:Cleanup()
 		end
 		
 		if activeHighlightsSet[instance] then
@@ -934,6 +983,8 @@ local function createEsp(instance, source)
 	end
 	
 	if rootPart then
+		local janitor = Janitor.new()
+		
 		local bg = Instance.new("BillboardGui")
 		bg.Size = UDim2.new(0, 100, 0, 30)
 		bg.AlwaysOnTop = true
@@ -941,6 +992,7 @@ local function createEsp(instance, source)
 		bg.Adornee = instance
 		bg.ExtentsOffset = Vector3.new(0, 1, 0)
 		bg.StudsOffset = Vector3.new(0, SETTINGS.VerticalOffset, 0)
+		janitor:Add(bg)
 		
 		local s = targetSettings[source]
 		local color = s and s.Color or Color3.new(1, 0, 0)
@@ -952,9 +1004,7 @@ local function createEsp(instance, source)
 		tl.Font = FONT_BOLD
 		tl.TextSize = 14
 		
-		if s and s.Rainbow then
-			-- Will be handled by loop
-		else
+		if not (s and s.Rainbow) then
 			tl.TextColor3 = color
 		end
 		
@@ -971,15 +1021,18 @@ local function createEsp(instance, source)
 			hl.OutlineColor = Color3.new(1, 1, 1)
 			hl.FillTransparency = 0.6
 			hl.Parent = PLAYER_GUI
+			janitor:Add(hl)
 			table.insert(activeHighlights, instance)
 			activeHighlightsSet[instance] = true
 		else
 			-- Recycle
 			local old = table.remove(activeHighlights, 1)
-			if old then activeHighlightsSet[old] = nil end
-			if espObjects[old] and espObjects[old].Highlight then
-				espObjects[old].Highlight:Destroy()
-				espObjects[old].Highlight = nil
+			if old then 
+				activeHighlightsSet[old] = nil 
+				if espObjects[old] and espObjects[old].Janitor then
+					espObjects[old].Janitor:Remove("Highlight")
+					espObjects[old].Highlight = nil
+				end
 			end
 			hl = Instance.new("Highlight")
 			hl.Adornee = instance
@@ -987,17 +1040,25 @@ local function createEsp(instance, source)
 			hl.OutlineColor = Color3.new(1, 1, 1)
 			hl.FillTransparency = 0.6
 			hl.Parent = PLAYER_GUI
+			janitor:Add(hl, nil, "Highlight")
 			table.insert(activeHighlights, instance)
 			activeHighlightsSet[instance] = true
 		end
 		
-		local objs = { GUI = bg, Highlight = hl, Label = tl, Source = source, Root = rootPart }
+		local objs = { 
+			Janitor = janitor, 
+			GUI = bg, 
+			Highlight = hl, 
+			Label = tl, 
+			Source = (source ~= instance) and source or nil, 
+			Root = (rootPart ~= instance) and rootPart or nil 
+		}
 		espObjects[instance] = objs
 		espObjectCount = espObjectCount + 1
 
-		objs.DestroyConn = instance.Destroying:Connect(function()
+		janitor:Add(instance.Destroying:Connect(function()
 			removeEsp(instance)
-		end)
+		end))
 	end
 end
 
@@ -1027,22 +1088,20 @@ local function toggleEsp(instance, forceState)
 				for _, child in pairs(instance:GetChildren()) do
 					if child:IsA("Model") or child:IsA("BasePart") then createEsp(child, instance) end
 				end
-				local childConn = instance.ChildAdded:Connect(function(child)
+				local childConn = addConnection(instance.ChildAdded:Connect(function(child)
 					if not ALIVE then return end
 					if child:IsA("Model") or child:IsA("BasePart") then
 						task.defer(function() createEsp(child, instance) end)
 					end
-				end)
-				addConnection(childConn)
+				end))
 
 				local destroyConn
-				destroyConn = instance.Destroying:Connect(function()
+				destroyConn = addConnection(instance.Destroying:Connect(function()
 					if watchedFolders[instance] then
 						toggleEsp(instance, false)
 					end
 					removeConnection(destroyConn)
-				end)
-				addConnection(destroyConn)
+				end))
 
 				watchedFolders[instance] = { ChildConn = childConn, DestroyConn = destroyConn }
 			end
@@ -1089,7 +1148,6 @@ local function getEspState(instance)
 	return espTargets[instance] or (watchedFolders[instance] ~= nil) or (espObjects[instance] ~= nil)
 end
 
-local rowPool = {}
 local function getRowFromPool()
 	local row = table.remove(rowPool)
 	if row then 
@@ -1146,7 +1204,6 @@ local function releaseRowToPool(row)
 	table.insert(rowPool, row)
 end
 
-local activeRowPool = {}
 local function getActiveRowFromPool()
 	local row = table.remove(activeRowPool)
 	if row then
@@ -1240,6 +1297,7 @@ end
 local function releaseActiveRowToPool(row)
 	row.Visible = false
 	row.Parent = nil
+	row:SetAttribute("Target", nil)
 	table.insert(activeRowPool, row)
 end
 
@@ -1288,8 +1346,6 @@ local activeRows = {} -- { [index] = Frame }
 local activeFlatList = {}
 local activeTabRows = {} -- { [index] = Frame }
 
--- Event connections for active rows (shared to avoid closure churn)
-local activeRowConns = setmetatable({}, {__mode = "k"}) -- { [Row] = { Conns... } }
 
 local function updateActiveViewport()
 	if not ALIVE then return end
@@ -1603,7 +1659,8 @@ task.spawn(function()
 		for inst, objs in pairs(espObjects) do
 			if inst.Parent then
 				-- Resolve Settings
-				local s = targetSettings[objs.Source]
+				local source = objs.Source or inst
+				local s = targetSettings[source]
 				local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
 				
 				local label = objs.Label
@@ -1613,7 +1670,8 @@ task.spawn(function()
 					
 					-- Update distance display (Staggered every 5 frames)
 					if updateCounter % 5 == 0 and showNames then
-						local targetPos = objs.Root and objs.Root.Position
+						local root = objs.Root or inst
+						local targetPos = root:IsA("BasePart") and root.Position or nil
 						if playerPos and targetPos then
 							local dist = math.floor((playerPos - targetPos).Magnitude)
 							local newText = inst.Name .. " [" .. dist .. "m]"
@@ -1628,6 +1686,8 @@ task.spawn(function()
 				if hl then
 					if hl.FillColor ~= color then
 						hl.FillColor = color
+					end
+					if hl.OutlineColor ~= color then
 						hl.OutlineColor = color
 					end
 					if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
