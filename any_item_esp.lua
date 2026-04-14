@@ -106,9 +106,9 @@ local rootDirectory = Workspace
 local expandedNodes = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean }
 local espTargets = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean } (Manual Toggles)
 local targetSettings = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Color = Color3, Rainbow = boolean } }
-local watchedFolders = setmetatable({}, {__mode = "k"}) -- { [Instance] = Connection } (Folder Watch)
+local watchedFolders = {} -- { [Instance] = { ChildConn, DestroyConn, Janitor } } (Folder Watch)
 local watchedFolderCount = 0
-local espObjects = setmetatable({}, {__mode = "k"}) -- { [Instance] = {GUI, Highlight, Source, Root} }
+local espObjects = {} -- { [Instance] = {GUI, Highlight, Source, Root, Janitor} }
 local espObjectCount = 0
 local activeHighlights = {} -- List of instances with active Highlights
 local activeHighlightsSet = setmetatable({}, {__mode = "k"}) -- { [Instance] = true } for O(1) lookup
@@ -180,11 +180,8 @@ local function UnloadScript(screenGui)
 	
 	-- Cleanup Watched Folder Connections
 	for inst, data in pairs(watchedFolders) do
-		if type(data) == "table" then
-			if data.ChildConn then data.ChildConn:Disconnect() end
-			if data.DestroyConn then data.DestroyConn:Disconnect() end
-		elseif data then
-			data:Disconnect()
+		if data.Janitor then
+			data.Janitor:Cleanup()
 		end
 	end
 	
@@ -211,6 +208,10 @@ local function UnloadScript(screenGui)
 	table.clear(activeRowConns)
 	table.clear(activeRowPool)
 	table.clear(rowPool)
+	table.clear(nodePool)
+	table.clear(currentFlatList)
+	table.clear(activeFlatList)
+	currentSelection = nil
 	
 	watchedFolderCount = 0
 	espObjectCount = 0
@@ -1086,28 +1087,26 @@ local function toggleEsp(instance, forceState)
 		if newState then
 			if not watchedFolders[instance] then
 				watchedFolderCount = watchedFolderCount + 1
+				local janitor = Janitor.new()
+				
 				for _, child in pairs(instance:GetChildren()) do
 					if child:IsA("Model") or child:IsA("BasePart") then createEsp(child, instance) end
 				end
-				local childConn = addConnection(instance.ChildAdded:Connect(function(child)
+				
+				janitor:Add(instance.ChildAdded:Connect(function(child)
 					if not ALIVE then return end
 					if child:IsA("Model") or child:IsA("BasePart") then
 						task.defer(function() createEsp(child, instance) end)
 					end
 				end))
 
-				watchedFolders[instance] = { ChildConn = childConn }
+				watchedFolders[instance] = { Janitor = janitor }
 			end
 		else
 			local data = watchedFolders[instance]
 			if data then
 				watchedFolderCount = math.max(0, watchedFolderCount - 1)
-				if type(data) == "table" then
-					removeConnection(data.ChildConn)
-					removeConnection(data.DestroyConn)
-				else
-					removeConnection(data)
-				end
+				if data.Janitor then data.Janitor:Cleanup() end
 				watchedFolders[instance] = nil
 				for _, child in pairs(instance:GetChildren()) do
 					-- When removing container, check if child is not targeted individually?
@@ -1298,12 +1297,13 @@ end
 local nodePool = {}
 local function getNode(info, depth)
 	local node = table.remove(nodePool)
+	local weakInfo = setmetatable({info}, {__mode = "v"})
 	if node then
-		node.Info = info
+		node.Info = weakInfo
 		node.Depth = depth
 		return node
 	end
-	return {Info = info, Depth = depth}
+	return {Info = weakInfo, Depth = depth}
 end
 
 local function releaseNodeToPool(node)
@@ -1358,7 +1358,8 @@ local function updateActiveViewport()
 
 	-- Render visible rows
 	for i = startIdx, endIdx do
-		local inst = activeFlatList[i]
+		local node = activeFlatList[i]
+		local inst = node and node[1]
 		if inst and not activeTabRows[i] then
 			local row = getActiveRowFromPool()
 			local expectedPos = UDim2.new(0, 0, 0, (i - 1) * 40)
@@ -1461,8 +1462,9 @@ local function updateViewport()
 	-- Render visible rows
 	for i = startIdx, endIdx do
 		local node = currentFlatList[i]
-		if node and not activeRows[i] then
-			local inst = node.Info
+		local inst = node and node.Info and node.Info[1]
+		
+		if inst and not activeRows[i] then
 			local depth = node.Depth
 			local row = getRowFromPool()
 			local expectedPos = UDim2.new(0, 0, 0, (i - 1) * 20)
@@ -1510,14 +1512,18 @@ local function updateViewport()
 
 			row.Parent = explorerScroll
 			activeRows[i] = row
-		elseif node and activeRows[i] then
+		elseif inst and activeRows[i] then
 			-- Already exists, just update toggle state in case it changed
 			local espBtn = activeRows[i]:FindFirstChild("EspToggle")
 			if espBtn then
-				local isActive = getEspState(node.Info)
+				local isActive = getEspState(inst)
 				local expectedEspText = isActive and ICONS.EyeOn or ICONS.EyeOff
 				if espBtn.Text ~= expectedEspText then espBtn.Text = expectedEspText end
 			end
+		elseif not inst and activeRows[i] then
+			-- Instance GC'ed
+			releaseRowToPool(activeRows[i])
+			activeRows[i] = nil
 		end
 	end
 end
@@ -1541,9 +1547,9 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 		local relativeY = mousePos.Y - scrollPos.Y + explorerScroll.CanvasPosition.Y
 		local idx = math.floor(relativeY / 20) + 1
 		local node = currentFlatList[idx]
-		if not node then return end
+		local inst = node and node.Info and node.Info[1]
+		if not inst then return end
 		
-		local inst = node.Info
 		local depth = node.Depth
 		local padding = depth * 20
 		local relX = mousePos.X - scrollPos.X
@@ -1619,12 +1625,22 @@ refreshActiveList = function()
 	table.clear(activeTabRows)
 	
 	activeFlatList = {}
-	for inst, _ in pairs(espTargets) do table.insert(activeFlatList, inst) end
+	for inst, _ in pairs(espTargets) do 
+		table.insert(activeFlatList, setmetatable({inst}, {__mode = "v"})) 
+	end
 	for inst, _ in pairs(watchedFolders) do 
-		if not espTargets[inst] then table.insert(activeFlatList, inst) end
+		if not espTargets[inst] then 
+			table.insert(activeFlatList, setmetatable({inst}, {__mode = "v"})) 
+		end
 	end
 	
-	table.sort(activeFlatList, function(a,b) return a.Name < b.Name end)
+	table.sort(activeFlatList, function(a,b) 
+		local instA = a[1]
+		local instB = b[1]
+		if not instA then return false end
+		if not instB then return true end
+		return instA.Name < instB.Name 
+	end)
 	
 	activeScroll.CanvasSize = UDim2.new(0, 0, 0, #activeFlatList * 40)
 	updateActiveViewport()
@@ -1634,77 +1650,79 @@ end
 task.spawn(function()
 	local updateCounter = 0
 	while ALIVE and screenGui.Parent do
-		local globalHue = (tick() % 5) / 5
-		local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
-		
-		-- Get player position for distance calc
-		local playerPos = nil
-		local char = PLAYER.Character
-		if char then
-			local hrp = char:FindFirstChild("HumanoidRootPart")
-			if hrp then playerPos = hrp.Position end
-		end
-		
-		local showNames = SETTINGS.ShowNames
-		local verticalOffset = SETTINGS.VerticalOffset
-		local expectedOffset = Vector3.new(0, verticalOffset, 0)
+		pcall(function()
+			local globalHue = (tick() % 5) / 5
+			local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
+			
+			-- Get player position for distance calc
+			local playerPos = nil
+			local char = PLAYER.Character
+			if char then
+				local hrp = char:FindFirstChild("HumanoidRootPart")
+				if hrp then playerPos = hrp.Position end
+			end
+			
+			local showNames = SETTINGS.ShowNames
+			local verticalOffset = SETTINGS.VerticalOffset
+			local expectedOffset = Vector3.new(0, verticalOffset, 0)
 
-		for inst, objs in pairs(espObjects) do
-			if inst and inst:IsDescendantOf(game) then
-				-- Resolve Settings
-				local source = objs.Source or inst
-				local s = targetSettings[source]
-				local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
-				
-				local label = objs.Label
-				if label and label.Parent then 
-					if label.TextColor3 ~= color then label.TextColor3 = color end
-					if label.Visible ~= showNames then label.Visible = showNames end
+			for inst, objs in pairs(espObjects) do
+				if inst and inst:IsDescendantOf(game) then
+					-- Resolve Settings
+					local source = objs.Source or inst
+					local s = targetSettings[source]
+					local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
 					
-					-- Update distance display (Staggered every 5 frames)
-					if updateCounter % 5 == 0 and showNames then
-						local root = objs.Root or inst
-						local targetPos = root:IsA("BasePart") and root.Position or nil
-						if playerPos and targetPos then
-							local dist = math.floor((playerPos - targetPos).Magnitude)
-							local newText = inst.Name .. " [" .. dist .. "m]"
-							if label.Text ~= newText then label.Text = newText end
-						elseif label.Text ~= inst.Name then
-							label.Text = inst.Name
+					local label = objs.Label
+					if label and label.Parent then 
+						if label.TextColor3 ~= color then label.TextColor3 = color end
+						if label.Visible ~= showNames then label.Visible = showNames end
+						
+						-- Update distance display (Staggered every 5 frames)
+						if updateCounter % 5 == 0 and showNames then
+							local root = objs.Root or inst
+							local targetPos = root:IsA("BasePart") and root.Position or nil
+							if playerPos and targetPos then
+								local dist = math.floor((playerPos - targetPos).Magnitude)
+								local newText = inst.Name .. " [" .. dist .. "m]"
+								if label.Text ~= newText then label.Text = newText end
+							elseif label.Text ~= inst.Name then
+								label.Text = inst.Name
+							end
 						end
 					end
-				end
 
-				local hl = objs.Highlight
-				if hl and hl.Parent then
-					if hl.FillColor ~= color then
-						hl.FillColor = color
+					local hl = objs.Highlight
+					if hl and hl.Parent then
+						if hl.FillColor ~= color then
+							hl.FillColor = color
+						end
+						if hl.OutlineColor ~= color then
+							hl.OutlineColor = color
+						end
+						if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
 					end
-					if hl.OutlineColor ~= color then
-						hl.OutlineColor = color
-					end
-					if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
-				end
 
-				local gui = objs.GUI
-				if gui and gui.Parent then
-					if not gui.Enabled then gui.Enabled = true end
-					if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
-				end
-			else
-				if inst and espTargets[inst] then toggleEsp(inst, false) end
-				removeEsp(inst)
-			end
-		end
-		
-		-- Periodic check for watched folders (Staggered every 20 frames)
-		if updateCounter % 20 == 0 then
-			for inst, _ in pairs(watchedFolders) do
-				if not inst:IsDescendantOf(game) then
-					toggleEsp(inst, false)
+					local gui = objs.GUI
+					if gui and gui.Parent then
+						if not gui.Enabled then gui.Enabled = true end
+						if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
+					end
+				else
+					if inst and espTargets[inst] then toggleEsp(inst, false) end
+					removeEsp(inst)
 				end
 			end
-		end
+			
+			-- Periodic check for watched folders (Staggered every 20 frames)
+			if updateCounter % 20 == 0 then
+				for inst, _ in pairs(watchedFolders) do
+					if not inst:IsDescendantOf(game) then
+						toggleEsp(inst, false)
+					end
+				end
+			end
+		end)
 		
 		-- Animate rainbow preview box if needed
 		if selectionSettingsFrame.Visible and currentSelection and targetSettings[currentSelection] then
