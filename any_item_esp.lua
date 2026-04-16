@@ -89,7 +89,7 @@ local SETTINGS = {
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- WB
 		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- path to object(s)
-		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true},
+		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true, TrackedProperties = {Opened = true}},
 		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
 	},
 	["863266079"] = { -- AR2
@@ -509,6 +509,95 @@ rainbowToggleBtn.Text = "Rainbow Mode: OFF"
 rainbowToggleBtn.TextColor3 = Color3.new(1, 1, 1)
 rainbowToggleBtn.Font = FONT_BOLD
 rainbowToggleBtn.Parent = selectionSettingsFrame
+
+-- Properties Section
+local propLabel = Instance.new("TextLabel")
+propLabel.Size = UDim2.new(1, -20, 0, 20)
+propLabel.Position = UDim2.new(0, 10, 0, 310)
+propLabel.BackgroundTransparency = 1
+propLabel.Text = "Trackable Properties"
+propLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+propLabel.Font = FONT_BOLD
+propLabel.TextSize = 14
+propLabel.TextXAlignment = Enum.TextXAlignment.Left
+propLabel.Parent = selectionSettingsFrame
+
+local propertiesScroll = Instance.new("ScrollingFrame")
+propertiesScroll.Name = "PropertiesScroll"
+propertiesScroll.Size = UDim2.new(1, -20, 1, -345) -- Fill remaining space
+propertiesScroll.Position = UDim2.new(0, 10, 0, 335)
+propertiesScroll.BackgroundTransparency = 0.5
+propertiesScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+propertiesScroll.ScrollBarThickness = 4
+propertiesScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
+propertiesScroll.BorderSizePixel = 0
+propertiesScroll.Parent = selectionSettingsFrame
+addCorners(propertiesScroll, 4)
+
+local propList = Instance.new("UIListLayout")
+propList.Padding = UDim.new(0, 2)
+propList.SortOrder = Enum.SortOrder.Name
+propList.Parent = propertiesScroll
+
+local function updatePropertySettings()
+	if not currentSelection or not targetSettings[currentSelection] then return end
+	local s = targetSettings[currentSelection]
+	
+	for _, child in pairs(propertiesScroll:GetChildren()) do
+		if child:IsA("Frame") then child:Destroy() end
+	end
+	
+	local props = {}
+	
+	-- Scan Attributes
+	for name, _ in pairs(currentSelection:GetAttributes()) do
+		props[name] = true
+	end
+	
+	-- Scan ValueBase Children
+	for _, child in pairs(currentSelection:GetChildren()) do
+		if child:IsA("ValueBase") then
+			props[child.Name] = true
+		end
+	end
+	
+	for name, _ in pairs(props) do
+		local row = Instance.new("Frame")
+		row.Name = name
+		row.Size = UDim2.new(1, 0, 0, 24)
+		row.BackgroundTransparency = 1
+		row.Parent = propertiesScroll
+		
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.new(1, -50, 1, 0)
+		lbl.Position = UDim2.new(0, 5, 0, 0)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = name
+		lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+		lbl.Font = FONT
+		lbl.TextSize = 12
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.Parent = row
+		
+		local toggle = Instance.new("TextButton")
+		toggle.Size = UDim2.new(0, 40, 0, 18)
+		toggle.Position = UDim2.new(1, -45, 0.5, -9)
+		toggle.BackgroundColor3 = s.TrackedProperties[name] and Color3.fromRGB(60, 150, 60) or Color3.fromRGB(60, 60, 65)
+		toggle.Text = s.TrackedProperties[name] and "ON" or "OFF"
+		toggle.TextColor3 = Color3.new(1, 1, 1)
+		toggle.Font = FONT_BOLD
+		toggle.TextSize = 10
+		toggle.Parent = row
+		addCorners(toggle, 4)
+		
+		toggle.MouseButton1Click:Connect(function()
+			s.TrackedProperties[name] = not s.TrackedProperties[name]
+			updatePropertySettings()
+		end)
+	end
+	
+	propertiesScroll.CanvasSize = UDim2.new(0, 0, 0, #propertiesScroll:GetChildren() * 24)
+end
 
 -- Update logic for selection UI
 local function updateSelectionUI()
@@ -1075,7 +1164,8 @@ local function toggleEsp(instance, forceState)
 		if not targetSettings[instance] then
 			targetSettings[instance] = {
 				Color = Color3.fromHSV(math.random(), 1, 1), -- Random color
-				Rainbow = false
+				Rainbow = false,
+				TrackedProperties = {}
 			}
 		end
 	else 
@@ -1424,6 +1514,7 @@ local function updateActiveViewport()
 					selTitle.Text = "Settings: " .. targetInst.Name
 					selectionSettingsFrame.Visible = true
 					updateSelectionUI()
+					updatePropertySettings()
 				end))
 
 				local removeBtn = row:FindFirstChild("RemoveBtn")
@@ -1494,7 +1585,7 @@ local function updateViewport()
 
 			local nameBtn = row:FindFirstChild("ItemName")
 			if nameBtn then
-				local expectedNameSize = UDim2.new(1, -(padding + 80), 1, 0)
+				local expectedNameSize = UDim2.new(1, -(padding + 110), 1, 0)
 				if nameBtn.Size ~= expectedNameSize then nameBtn.Size = expectedNameSize end
 				
 				local expectedNamePos = UDim2.new(0, padding + 40, 0, 0)
@@ -1502,6 +1593,20 @@ local function updateViewport()
 				
 				if nameBtn.Text ~= inst.Name then nameBtn.Text = inst.Name end
 			end
+
+			local setsBtn = row:FindFirstChild("SettingsBtn")
+			if not setsBtn then
+				setsBtn = Instance.new("TextButton")
+				setsBtn.Name = "SettingsBtn"
+				setsBtn.Size = UDim2.new(0, 30, 1, 0)
+				setsBtn.BackgroundTransparency = 1
+				setsBtn.TextColor3 = Color3.new(1, 1, 1)
+				setsBtn.Font = FONT
+				setsBtn.TextSize = 14
+				setsBtn.Text = ICONS.Settings
+				setsBtn.Parent = row
+			end
+			setsBtn.Position = UDim2.new(1, -60, 0, 0)
 
 			local espBtn = row:FindFirstChild("EspToggle")
 			if espBtn then
@@ -1561,10 +1666,17 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 				expandedNodes[inst] = not expandedNodes[inst]
 				refreshTree()
 			end
-		elseif relX >= scrollSize.X - 40 then
+		elseif relX >= scrollSize.X - 30 then
 			-- ESP toggle
 			toggleEsp(inst)
 			updateViewport()
+		elseif relX >= scrollSize.X - 60 and relX < scrollSize.X - 30 then
+			-- Settings button
+			currentSelection = inst
+			selTitle.Text = "Settings: " .. inst.Name
+			selectionSettingsFrame.Visible = true
+			updateSelectionUI()
+			updatePropertySettings()
 		elseif relX >= padding + 40 then
 			-- Name clicked (also expand if container)
 			if inst:IsA("Folder") or inst:IsA("Model") then
@@ -1684,7 +1796,33 @@ task.spawn(function()
 							local targetPos = root:IsA("BasePart") and root.Position or nil
 							if playerPos and targetPos then
 								local dist = math.floor((playerPos - targetPos).Magnitude)
-								local newText = inst.Name .. " [" .. dist .. "m]"
+								local baseText = inst.Name .. " [" .. dist .. "m]"
+								
+								-- Add Tracked Properties
+								local propText = ""
+								if s and s.TrackedProperties then
+									for propName, active in pairs(s.TrackedProperties) do
+										if active then
+											local val = inst:GetAttribute(propName)
+											if val == nil then
+												local valObj = inst:FindFirstChild(propName)
+												if valObj and valObj:IsA("ValueBase") then
+													val = valObj.Value
+												end
+											end
+											
+											if val ~= nil then
+												if type(val) == "boolean" then
+													propText = propText .. (val and " [" .. propName .. "]" or " [Not " .. propName .. "]")
+												else
+													propText = propText .. " [" .. propName .. ": " .. tostring(val) .. "]"
+												end
+											end
+										end
+									end
+								end
+
+								local newText = baseText .. propText
 								if label.Text ~= newText then label.Text = newText end
 							elseif label.Text ~= inst.Name then
 								label.Text = inst.Name
@@ -1754,7 +1892,8 @@ local function ApplyTemplate()
 				-- Preset the color before toggling
 				targetSettings[target] = {
 					Color = entry.Color,
-					Rainbow = entry.Rainbow or false
+					Rainbow = entry.Rainbow or false,
+					TrackedProperties = entry.TrackedProperties or {}
 				}
 				toggleEsp(target, true)
 			end
