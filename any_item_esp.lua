@@ -1080,7 +1080,7 @@ local function createEsp(instance, source)
 		local janitor = Janitor.new()
 		
 		local bg = Instance.new("BillboardGui")
-		bg.Size = UDim2.new(0, 100, 0, 30)
+		bg.Size = UDim2.new(0, 150, 0, 60)
 		bg.AlwaysOnTop = true
 		bg.Name = "ESPTag"
 		bg.Adornee = instance
@@ -1822,7 +1822,7 @@ task.spawn(function()
 									end
 								end
 
-								local newText = baseText .. propText
+								local newText = baseText .. (propText ~= "" and "\n" .. propText or "")
 								if label.Text ~= newText then label.Text = newText end
 							elseif label.Text ~= inst.Name then
 								label.Text = inst.Name
