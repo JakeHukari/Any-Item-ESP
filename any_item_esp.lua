@@ -5,6 +5,7 @@ local Workspace = game:GetService("Workspace")
 local camera = Workspace.CurrentCamera
 local TeleportService = game:GetService("TeleportService")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 
 -- Global State for Cleanup
 local ALIVE = true
@@ -1662,7 +1663,7 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 	-- This is more efficient than thousands of connections
 	if not explorerScroll.Visible then return end
 	
-	local mousePos = UserInputService:GetMouseLocation()
+	local mousePos = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
 	local scrollPos = explorerScroll.AbsolutePosition
 	local scrollSize = explorerScroll.AbsoluteSize
 	
