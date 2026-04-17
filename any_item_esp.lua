@@ -413,6 +413,16 @@ local function getRelativePath(instance)
 	return path
 end
 
+local function resolvePath(root, path)
+	local segments = string.split(path, ".")
+	local current = root
+	for _, segment in ipairs(segments) do
+		current = current:WaitForChild(segment, 5)
+		if not current then return nil end
+	end
+	return current
+end
+
 local function exportTemplate()
 	local id = tostring(game.PlaceId)
 	local activeItems = {}
@@ -2051,7 +2061,7 @@ local function ApplyTemplate()
 	
 	task.spawn(function()
 		for _, entry in ipairs(template) do
-			local target = Workspace:WaitForChild(entry.Path, 5)
+			local target = resolvePath(Workspace, entry.Path)
 			if target then
 				-- Preset the color before toggling
 				targetSettings[target] = {
