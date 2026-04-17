@@ -405,6 +405,55 @@ addConnection(gameIdCopyBtn.MouseButton1Click:Connect(function()
 	end)
 end))
 
+local function getRelativePath(instance)
+	local path = instance:GetFullName()
+	if path:sub(1, 10) == "Workspace." then
+		return path:sub(11)
+	end
+	return path
+end
+
+local function exportTemplate()
+	local id = tostring(game.PlaceId)
+	local activeItems = {}
+	
+	local seen = {}
+	local function process(inst)
+		if seen[inst] then return end
+		seen[inst] = true
+		
+		local s = targetSettings[inst]
+		if not s then return end
+		
+		local colorStr = string.format("Color3.fromRGB(%d, %d, %d)", math.floor(s.Color.R * 255), math.floor(s.Color.G * 255), math.floor(s.Color.B * 255))
+		local rainbowStr = s.Rainbow and ", Rainbow = true" or ""
+		
+		local propList = {}
+		for propName, active in pairs(s.TrackedProperties) do
+			if active then
+				table.insert(propList, string.format("%s = true", propName))
+			end
+		end
+		local propStr = #propList > 0 and (", TrackedProperties = {" .. table.concat(propList, ", ") .. "}") or ""
+		
+		table.insert(activeItems, string.format('\t\t{Path = "%s", Color = %s%s%s}', getRelativePath(inst), colorStr, rainbowStr, propStr))
+	end
+	
+	-- Prioritize espTargets, then watchedFolders
+	for inst, _ in pairs(espTargets) do
+		if inst:IsDescendantOf(game) then process(inst) end
+	end
+	for inst, _ in pairs(watchedFolders) do
+		if inst:IsDescendantOf(game) then process(inst) end
+	end
+	
+	local templateBody = table.concat(activeItems, ",\n")
+	local fullTemplate = string.format('["%s"] = {\n%s\n\t},', id, templateBody)
+	
+	if setclipboard then setclipboard(fullTemplate)
+	elseif Clipboard and Clipboard.set then Clipboard.set(fullTemplate) end
+end
+
 local function updateStatusBar()
 	local highlightsCount = #activeHighlights
 	local statusText = string.format("ESP: %d | Highlights: %d/%d | Watching: %d folders", 
@@ -450,10 +499,24 @@ explorerScroll.Parent = contentArea
 
 
 -- Active List
+local exportBtn = Instance.new("TextButton")
+exportBtn.Name = "ExportBtn"
+exportBtn.Size = UDim2.fromScale(0.95, 0.0653)
+exportBtn.Position = UDim2.fromScale(0.025, 0.015)
+exportBtn.BackgroundColor3 = Color3.fromRGB(60, 130, 180)
+exportBtn.BorderSizePixel = 0
+exportBtn.Text = "📤 Export Game-Specific Template"
+exportBtn.TextColor3 = Color3.new(1, 1, 1)
+exportBtn.Font = FONT_BOLD
+exportBtn.TextSize = 13
+exportBtn.Visible = false
+exportBtn.Parent = contentArea
+addCorners(exportBtn, 4)
+
 local activeScroll = Instance.new("ScrollingFrame")
 activeScroll.Name = "ActiveList"
-activeScroll.Size = UDim2.fromScale(0.976, 0.99)
-activeScroll.Position = UDim2.fromScale(0.012, 0.005)
+activeScroll.Size = UDim2.fromScale(0.976, 0.89)
+activeScroll.Position = UDim2.fromScale(0.012, 0.09)
 activeScroll.BackgroundTransparency = 1
 activeScroll.ScrollBarThickness = 5
 activeScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
@@ -957,6 +1020,7 @@ local function switchTab(tab)
 		explorerScroll.Visible = true
 		searchBox.Visible = true
 		activeScroll.Visible = false
+		exportBtn.Visible = false
 		selectionSettingsFrame.Visible = false
 		refreshTree()
 		updateStatusBar()
@@ -1282,14 +1346,6 @@ end
 
 -- RENDER Logic
 
-local function getRelativePath(instance)
-	local path = instance:GetFullName()
-	if path:sub(1, 10) == "Workspace." then
-		return path:sub(11)
-	end
-	return path
-end
-
 local function getIcon(instance)
 	if instance:IsA("Folder") then return ICONS.Folder end
 	if instance:IsA("Model") then return ICONS.Model end
@@ -1574,7 +1630,17 @@ local function updateActiveViewport()
 						end
 					end
 					
-					local templateStr = string.format('{Path = "%s", Color = %s%s}', getRelativePath(targetInst), colorStr, rainbowStr)
+					local propList = {}
+					if s and s.TrackedProperties then
+						for propName, active in pairs(s.TrackedProperties) do
+							if active then
+								table.insert(propList, string.format("%s = true", propName))
+							end
+						end
+					end
+					local propStr = #propList > 0 and (", TrackedProperties = {" .. table.concat(propList, ", ") .. "}") or ""
+					
+					local templateStr = string.format('{Path = "%s", Color = %s%s%s}', getRelativePath(targetInst), colorStr, rainbowStr, propStr)
 					
 					if setclipboard then setclipboard(templateStr)
 					elseif Clipboard and Clipboard.set then Clipboard.set(templateStr) end
@@ -1833,9 +1899,24 @@ refreshActiveList = function()
 		return a.Name:lower() < b.Name:lower() 
 	end)
 	
+	exportBtn.Visible = (currentTab == "Active" and #activeFlatList > 0)
+	
 	activeScroll.CanvasSize = UDim2.new(0, 0, 0, #activeFlatList * 40)
 	updateActiveViewport()
 end
+
+addConnection(exportBtn.MouseButton1Click:Connect(function()
+	exportTemplate()
+	exportBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+	local oldText = exportBtn.Text
+	exportBtn.Text = "✅ Template Copied to Clipboard!"
+	task.delay(1.5, function()
+		if exportBtn and exportBtn.Parent then
+			exportBtn.BackgroundColor3 = Color3.fromRGB(60, 130, 180)
+			exportBtn.Text = oldText
+		end
+	end)
+end))
 
 -- Animation Loop
 task.spawn(function()
