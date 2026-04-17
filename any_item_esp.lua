@@ -95,7 +95,7 @@ local GAME_TEMPLATES = {
 		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "Items.Items.Sapphire", Color = Color3.fromRGB(255, 0, 255)},
-		{Path = "Items.InventoryBags", Color = Color3.fromRGB(255, 255, 255), TrackAll = true},
+		{Path = "Items.InventoryBags", Color = Color3.fromRGB(0, 255, 255), TrackAll = true},
 		{Path = "Items.Items.Diamond", Color = Color3.fromRGB(255, 0, 255)}
 	},
 	["3107097964"] = { -- NTRTY - DWNTWN_BNK
@@ -1279,7 +1279,7 @@ local function createEsp(instance, source)
 		local janitor = Janitor.new()
 		
 		local bg = Instance.new("BillboardGui")
-		bg.Size = UDim2.new(0, 200, 0, 150)
+		bg.Size = UDim2.new(0, 150, 0, 60)
 		bg.AlwaysOnTop = true
 		bg.Name = "ESPTag"
 		bg.Adornee = instance
