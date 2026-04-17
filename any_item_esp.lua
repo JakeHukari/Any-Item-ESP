@@ -89,9 +89,14 @@ local SETTINGS = {
 -- Game-Specific Templates
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- WB
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
+		{Path = "Items.InventoryBags", Color = Color3.fromRGB(255, 255, 255)},
+		{Path = "Items.Items.Ruby", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true, TrackedProperties = {Opened = true}},
-		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
+		{Path = "Items.Items.Diamond", Color = Color3.fromRGB(255, 0, 255)},
+		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
+		{Path = "Items.Items.Sapphire", Color = Color3.fromRGB(255, 0, 255)},
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
+		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)}
 	},
 	["1213821265"] = { -- NTRTY - RNB
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
