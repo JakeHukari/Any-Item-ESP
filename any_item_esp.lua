@@ -88,7 +88,7 @@ local SETTINGS = {
 -- Game-Specific Templates
 local GAME_TEMPLATES = {
 	["2474168535"] = { -- WB
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203)}, -- path to object(s)
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true, TrackedProperties = {Opened = true}},
 		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
 	},
