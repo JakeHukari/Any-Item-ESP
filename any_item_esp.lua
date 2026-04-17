@@ -93,6 +93,11 @@ local GAME_TEMPLATES = {
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true, TrackedProperties = {Opened = true}},
 		{Path = "Items", Color = Color3.fromRGB(0, 255, 0)}
 	},
+	["1213821265"] = { -- NTRTY - RNB
+		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
+		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0)},
+		{Path = "Police", Color = Color3.fromRGB(255, 0, 62)}
+	},
 	["863266079"] = { -- AR2
 		{Path = "Zombies", Color = Color3.fromRGB(0, 191, 108)}, 
 		{Path = "Vehicles", Color = Color3.fromRGB(255, 255, 255)}
