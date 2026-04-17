@@ -569,8 +569,26 @@ local function updatePropertySettings()
 			props[child.Name] = true
 		end
 	end
+
+	-- Scan children properties if container
+	if currentSelection:IsA("Folder") or currentSelection:IsA("Model") or watchedFolders[currentSelection] then
+		local children = currentSelection:GetChildren()
+		for i = 1, math.min(#children, 20) do
+			local child = children[i]
+			for name, _ in pairs(child:GetAttributes()) do
+				props[name] = true
+			end
+			for _, subchild in pairs(child:GetChildren()) do
+				if subchild:IsA("ValueBase") then
+					props[subchild.Name] = true
+				end
+			end
+		end
+	end
 	
+	local rowCount = 0
 	for name, _ in pairs(props) do
+		rowCount = rowCount + 1
 		local row = Instance.new("Frame")
 		row.Name = name
 		row.Size = UDim2.new(1, 0, 0, 24)
@@ -605,7 +623,7 @@ local function updatePropertySettings()
 		end)
 	end
 	
-	propertiesScroll.CanvasSize = UDim2.new(0, 0, 0, #propertiesScroll:GetChildren() * 24)
+	propertiesScroll.CanvasSize = UDim2.new(0, 0, 0, rowCount * 24)
 end
 
 -- Update logic for selection UI
@@ -1250,7 +1268,7 @@ local function getRowFromPool()
 	row.Size = UDim2.new(1, 0, 0, 20)
 	row.BackgroundTransparency = 1
 
-	local expandBtn = Instance.new("TextButton")
+	local expandBtn = Instance.new("TextLabel")
 	expandBtn.Name = "Expand"
 	expandBtn.Size = UDim2.new(0, 20, 1, 0)
 	expandBtn.BackgroundTransparency = 1
@@ -1266,7 +1284,7 @@ local function getRowFromPool()
 	iconLabel.TextSize = 14
 	iconLabel.Parent = row
 
-	local nameBtn = Instance.new("TextButton")
+	local nameBtn = Instance.new("TextLabel")
 	nameBtn.Name = "ItemName"
 	nameBtn.BackgroundTransparency = 1
 	nameBtn.TextColor3 = Color3.fromRGB(204, 204, 204)
@@ -1276,7 +1294,7 @@ local function getRowFromPool()
 	nameBtn.TextTruncate = Enum.TextTruncate.AtEnd
 	nameBtn.Parent = row
 
-	local espBtn = Instance.new("TextButton")
+	local espBtn = Instance.new("TextLabel")
 	espBtn.Name = "EspToggle"
 	espBtn.Size = UDim2.new(0, 30, 1, 0)
 	espBtn.Position = UDim2.new(1, -30, 0, 0)
@@ -1598,7 +1616,7 @@ local function updateViewport()
 
 			local setsBtn = row:FindFirstChild("SettingsBtn")
 			if not setsBtn then
-				setsBtn = Instance.new("TextButton")
+				setsBtn = Instance.new("TextLabel")
 				setsBtn.Name = "SettingsBtn"
 				setsBtn.Size = UDim2.new(0, 30, 1, 0)
 				setsBtn.BackgroundTransparency = 1
@@ -1637,8 +1655,8 @@ end
 
 -- Shared click handlers for pooled rows
 addConnection(UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
 	if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+	if selectionSettingsFrame.Visible or settingsFrame.Visible then return end
 	
 	-- Determine which row was clicked manually since we are using pooled rows
 	-- This is more efficient than thousands of connections
@@ -1762,9 +1780,10 @@ end
 task.spawn(function()
 	local updateCounter = 0
 	while ALIVE and screenGui.Parent do
+		local globalHue = (tick() % 5) / 5
+		local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
+		
 		pcall(function()
-			local globalHue = (tick() % 5) / 5
-			local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
 			
 			-- Get player position for distance calc
 			local playerPos = nil
