@@ -88,15 +88,15 @@ local SETTINGS = {
 
 -- Game-Specific Templates
 local GAME_TEMPLATES = {
-	["2474168535"] = { -- WB
-		{Path = "Items.InventoryBags", Color = Color3.fromRGB(255, 255, 255)},
+	["2474168535"] = {
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
 		{Path = "Items.Items.Ruby", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true, TrackedProperties = {Opened = true}},
-		{Path = "Items.Items.Diamond", Color = Color3.fromRGB(255, 0, 255)},
+		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "Items.Items.Sapphire", Color = Color3.fromRGB(255, 0, 255)},
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
-		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)}
+		{Path = "Items.InventoryBags", Color = Color3.fromRGB(255, 255, 255), TrackAll = true},
+		{Path = "Items.Items.Diamond", Color = Color3.fromRGB(255, 0, 255)}
 	},
 	["1213821265"] = { -- NTRTY - RNB
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
@@ -447,6 +447,7 @@ local function exportTemplate()
 		
 		local colorStr = string.format("Color3.fromRGB(%d, %d, %d)", math.floor(s.Color.R * 255), math.floor(s.Color.G * 255), math.floor(s.Color.B * 255))
 		local rainbowStr = s.Rainbow and ", Rainbow = true" or ""
+		local trackAllStr = s.TrackAll and ", TrackAll = true" or ""
 		
 		local propList = {}
 		for propName, active in pairs(s.TrackedProperties) do
@@ -456,7 +457,7 @@ local function exportTemplate()
 		end
 		local propStr = #propList > 0 and (", TrackedProperties = {" .. table.concat(propList, ", ") .. "}") or ""
 		
-		table.insert(activeItems, string.format('\t\t{Path = "%s", Color = %s%s%s}', getRelativePath(inst), colorStr, rainbowStr, propStr))
+		table.insert(activeItems, string.format('\t\t{Path = "%s", Color = %s%s%s%s}', getRelativePath(inst), colorStr, rainbowStr, trackAllStr, propStr))
 	end
 	
 	-- Prioritize espTargets, then watchedFolders
@@ -709,6 +710,42 @@ local function updatePropertySettings()
 	end
 	
 	local rowCount = 0
+
+	-- Track All Toggle
+	rowCount = rowCount + 1
+	local trackAllRow = Instance.new("Frame")
+	trackAllRow.Name = "0_TrackAll"
+	trackAllRow.Size = UDim2.new(1, 0, 0, 24)
+	trackAllRow.BackgroundTransparency = 1
+	trackAllRow.Parent = propertiesScroll
+
+	local taLbl = Instance.new("TextLabel")
+	taLbl.Size = UDim2.new(1, -50, 1, 0)
+	taLbl.Position = UDim2.new(0, 5, 0, 0)
+	taLbl.BackgroundTransparency = 1
+	taLbl.Text = "TRACK ALL PROPERTIES"
+	taLbl.TextColor3 = Color3.fromRGB(255, 255, 100)
+	taLbl.Font = FONT_BOLD
+	taLbl.TextSize = 12
+	taLbl.TextXAlignment = Enum.TextXAlignment.Left
+	taLbl.Parent = trackAllRow
+
+	local taToggle = Instance.new("TextButton")
+	taToggle.Size = UDim2.new(0, 40, 0, 18)
+	taToggle.Position = UDim2.new(1, -45, 0.5, -9)
+	taToggle.BackgroundColor3 = s.TrackAll and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(60, 60, 65)
+	taToggle.Text = s.TrackAll and "ON" or "OFF"
+	taToggle.TextColor3 = Color3.new(1, 1, 1)
+	taToggle.Font = FONT_BOLD
+	taToggle.TextSize = 10
+	taToggle.Parent = trackAllRow
+	addCorners(taToggle, 4)
+
+	taToggle.MouseButton1Click:Connect(function()
+		s.TrackAll = not s.TrackAll
+		updatePropertySettings()
+	end)
+
 	for name, _ in pairs(props) do
 		rowCount = rowCount + 1
 		local row = Instance.new("Frame")
@@ -1315,7 +1352,8 @@ local function toggleEsp(instance, forceState)
 			targetSettings[instance] = {
 				Color = Color3.fromHSV(math.random(), 1, 1), -- Random color
 				Rainbow = false,
-				TrackedProperties = {}
+				TrackedProperties = {},
+				TrackAll = false
 			}
 		end
 	else 
@@ -1642,11 +1680,15 @@ local function updateActiveViewport()
 					local s = targetSettings[targetInst]
 					local colorStr = "Color3.fromRGB(255, 255, 255)"
 					local rainbowStr = ""
+					local trackAllStr = ""
 					if s then
 						local c = s.Color
 						colorStr = string.format("Color3.fromRGB(%d, %d, %d)", math.floor(c.R * 255), math.floor(c.G * 255), math.floor(c.B * 255))
 						if s.Rainbow then
 							rainbowStr = ", Rainbow = true"
+						end
+						if s.TrackAll then
+							trackAllStr = ", TrackAll = true"
 						end
 					end
 					
@@ -1660,7 +1702,7 @@ local function updateActiveViewport()
 					end
 					local propStr = #propList > 0 and (", TrackedProperties = {" .. table.concat(propList, ", ") .. "}") or ""
 					
-					local templateStr = string.format('{Path = "%s", Color = %s%s%s}', getRelativePath(targetInst), colorStr, rainbowStr, propStr)
+					local templateStr = string.format('{Path = "%s", Color = %s%s%s%s}', getRelativePath(targetInst), colorStr, rainbowStr, trackAllStr, propStr)
 					
 					if setclipboard then setclipboard(templateStr)
 					elseif Clipboard and Clipboard.set then Clipboard.set(templateStr) end
@@ -1981,25 +2023,49 @@ task.spawn(function()
 								
 								-- Add Tracked Properties
 								local propText = ""
-								if s and s.TrackedProperties then
-									for propName, active in pairs(s.TrackedProperties) do
-										if active then
-											local success, val = pcall(function()
-												local v = inst:GetAttribute(propName)
-												if v == nil then
-													local valObj = inst:FindFirstChild(propName)
-													if valObj and valObj:IsA("ValueBase") then
-														v = valObj.Value
+								if s then
+									if s.TrackAll then
+										local allProps = {}
+										-- Collect attributes
+										for name, val in pairs(inst:GetAttributes()) do
+											table.insert(allProps, {Name = name, Value = val})
+										end
+										-- Collect ValueBase
+										for _, child in ipairs(inst:GetChildren()) do
+											if child:IsA("ValueBase") then
+												table.insert(allProps, {Name = child.Name, Value = child.Value})
+											end
+										end
+										-- Sort by name
+										table.sort(allProps, function(a, b) return a.Name:lower() < b.Name:lower() end)
+										
+										for _, p in ipairs(allProps) do
+											if type(p.Value) == "boolean" then
+												propText = propText .. (p.Value and " [" .. p.Name .. "]" or " [Not " .. p.Name .. "]")
+											else
+												propText = propText .. " [" .. p.Name .. ": " .. tostring(p.Value) .. "]"
+											end
+										end
+									elseif s.TrackedProperties then
+										for propName, active in pairs(s.TrackedProperties) do
+											if active then
+												local success, val = pcall(function()
+													local v = inst:GetAttribute(propName)
+													if v == nil then
+														local valObj = inst:FindFirstChild(propName)
+														if valObj and valObj:IsA("ValueBase") then
+															v = valObj.Value
+														end
 													end
-												end
-												return v
-											end)
-											
-											if success and val ~= nil then
-												if type(val) == "boolean" then
-													propText = propText .. (val and " [" .. propName .. "]" or " [Not " .. propName .. "]")
-												else
-													propText = propText .. " [" .. propName .. ": " .. tostring(val) .. "]"
+													return v
+												end)
+												
+												if success and val ~= nil then
+													if type(val) == "boolean" then
+														propText = propText .. (val and " [" .. propName .. "]" or " [Not " .. propName .. "]")
+													else
+														propText = propText .. " [" .. propName .. ": " .. tostring(val) .. "]"
+													end
 												end
 											end
 										end
@@ -2069,7 +2135,26 @@ local function ApplyTemplate()
 	local template = GAME_TEMPLATES[id]
 	if not template then return end
 	
+	local function checkAndApply(inst)
+		local relPath = getRelativePath(inst)
+		for _, entry in ipairs(template) do
+			if entry.Path == relPath then
+				-- Preset the color before toggling
+				targetSettings[inst] = {
+					Color = entry.Color,
+					Rainbow = entry.Rainbow or false,
+					TrackedProperties = entry.TrackedProperties or {},
+					TrackAll = entry.TrackAll or false
+				}
+				toggleEsp(inst, true)
+				return true
+			end
+		end
+		return false
+	end
+
 	task.spawn(function()
+		-- Initial pass
 		for _, entry in ipairs(template) do
 			local target = resolvePath(Workspace, entry.Path)
 			if target then
@@ -2077,11 +2162,23 @@ local function ApplyTemplate()
 				targetSettings[target] = {
 					Color = entry.Color,
 					Rainbow = entry.Rainbow or false,
-					TrackedProperties = entry.TrackedProperties or {}
+					TrackedProperties = entry.TrackedProperties or {},
+					TrackAll = entry.TrackAll or false
 				}
 				toggleEsp(target, true)
 			end
 		end
+
+		-- Dynamic loading
+		addConnection(Workspace.DescendantAdded:Connect(function(desc)
+			if not ALIVE then return end
+			-- Brief delay to ensure properties/hierarchy are ready
+			task.delay(0.1, function()
+				if desc:IsDescendantOf(Workspace) then
+					checkAndApply(desc)
+				end
+			end)
+		end))
 	end)
 end
 
