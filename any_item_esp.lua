@@ -95,7 +95,7 @@ local GAME_TEMPLATES = {
 		{Path = "Items.Items.Diamond", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "Items.Items.Sapphire", Color = Color3.fromRGB(255, 0, 255)},
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true, StateName = true}},
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
 		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)}
 	},
 	["1213821265"] = { -- NTRTY - RNB
