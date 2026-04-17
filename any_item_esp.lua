@@ -357,7 +357,7 @@ statusBar.Parent = mainFrame
 
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Name = "StatusText"
-statusLabel.Size = UDim2.fromScale(0.97, 1)
+statusLabel.Size = UDim2.fromScale(0.55, 1)
 statusLabel.Position = UDim2.fromScale(0.015, 0)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "ESP: 0 | Highlights: 0/" .. SETTINGS.MaxHighlights
@@ -366,6 +366,44 @@ statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Font = FONT
 statusLabel.TextSize = 11
 statusLabel.Parent = statusBar
+
+local gameIdLabel = Instance.new("TextLabel")
+gameIdLabel.Name = "GameIdText"
+gameIdLabel.Size = UDim2.fromScale(0.35, 1)
+gameIdLabel.Position = UDim2.fromScale(0.57, 0)
+gameIdLabel.BackgroundTransparency = 1
+gameIdLabel.Text = "GameID - " .. tostring(game.PlaceId)
+gameIdLabel.TextColor3 = Color3.fromRGB(140, 140, 150)
+gameIdLabel.TextXAlignment = Enum.TextXAlignment.Right
+gameIdLabel.Font = FONT
+gameIdLabel.TextSize = 11
+gameIdLabel.Parent = statusBar
+
+local gameIdCopyBtn = Instance.new("TextButton")
+gameIdCopyBtn.Name = "GameIdCopyBtn"
+gameIdCopyBtn.Size = UDim2.new(0, 20, 0, 18)
+gameIdCopyBtn.Position = UDim2.new(1, -25, 0.5, -9)
+gameIdCopyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+gameIdCopyBtn.BorderSizePixel = 0
+gameIdCopyBtn.Text = "📋"
+gameIdCopyBtn.TextColor3 = Color3.new(1, 1, 1)
+gameIdCopyBtn.Font = FONT
+gameIdCopyBtn.TextSize = 10
+gameIdCopyBtn.Parent = statusBar
+addCorners(gameIdCopyBtn, 4)
+
+addConnection(gameIdCopyBtn.MouseButton1Click:Connect(function()
+	local id = tostring(game.PlaceId)
+	if setclipboard then setclipboard(id)
+	elseif Clipboard and Clipboard.set then Clipboard.set(id) end
+	
+	gameIdCopyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+	task.delay(0.5, function()
+		if gameIdCopyBtn and gameIdCopyBtn.Parent then
+			gameIdCopyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+		end
+	end)
+end))
 
 local function updateStatusBar()
 	local highlightsCount = #activeHighlights
@@ -1244,6 +1282,14 @@ end
 
 -- RENDER Logic
 
+local function getRelativePath(instance)
+	local path = instance:GetFullName()
+	if path:sub(1, 10) == "Workspace." then
+		return path:sub(11)
+	end
+	return path
+end
+
 local function getIcon(instance)
 	if instance:IsA("Folder") then return ICONS.Folder end
 	if instance:IsA("Model") then return ICONS.Model end
@@ -1516,9 +1562,23 @@ local function updateActiveViewport()
 				table.insert(rowConns, copyBtn.MouseButton1Click:Connect(function()
 					local targetInst = rowToInstance[row]
 					if not targetInst then return end
-					local path = targetInst:GetFullName()
-					if setclipboard then setclipboard(path)
-					elseif Clipboard and Clipboard.set then Clipboard.set(path) end
+					
+					local s = targetSettings[targetInst]
+					local colorStr = "Color3.fromRGB(255, 255, 255)"
+					local rainbowStr = ""
+					if s then
+						local c = s.Color
+						colorStr = string.format("Color3.fromRGB(%d, %d, %d)", math.floor(c.R * 255), math.floor(c.G * 255), math.floor(c.B * 255))
+						if s.Rainbow then
+							rainbowStr = ", Rainbow = true"
+						end
+					end
+					
+					local templateStr = string.format('{Path = "%s", Color = %s%s}', getRelativePath(targetInst), colorStr, rainbowStr)
+					
+					if setclipboard then setclipboard(templateStr)
+					elseif Clipboard and Clipboard.set then Clipboard.set(templateStr) end
+					
 					copyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
 					task.delay(0.5, function()
 						if copyBtn and copyBtn.Parent then
