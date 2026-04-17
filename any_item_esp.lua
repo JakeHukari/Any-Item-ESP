@@ -131,10 +131,11 @@ local espTargets = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean } 
 local targetSettings = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Color = Color3, Rainbow = boolean } }
 local watchedFolders = {} -- { [Instance] = { ChildConn, DestroyConn, Janitor } } (Folder Watch)
 local watchedFolderCount = 0
-local espObjects = {} -- { [Instance] = {GUI, Highlight, Source, Root, Janitor} }
+local espObjects = {} -- { [Instance] = {GUI, Highlight, Source, Root, Janitor, PropertyString, LastDistance, LastColor} }
 local espObjectCount = 0
 local activeHighlights = {} -- List of instances with active Highlights
 local activeHighlightsSet = setmetatable({}, {__mode = "k"}) -- { [Instance] = true } for O(1) lookup
+local highlightPool = {}
 local searchText = ""
 local currentTab = "Explorer" -- "Explorer", "Active", "Settings"
 local isRendering = false
@@ -239,6 +240,8 @@ local function UnloadScript(screenGui)
 	table.clear(activeRowPool)
 	table.clear(rowPool)
 	table.clear(nodePool)
+	for _, hl in ipairs(highlightPool) do hl:Destroy() end
+	table.clear(highlightPool)
 	table.clear(currentFlatList)
 	table.clear(activeFlatList)
 	table.clear(activeRows)
@@ -1259,6 +1262,61 @@ local function removeEsp(instance)
 	end
 end
 
+local function updateEspPropertyString(instance)
+	local objs = espObjects[instance]
+	if not objs then return end
+	local source = objs.Source or instance
+	local s = targetSettings[source]
+	if not s then return "" end
+
+	local allProps = {}
+	if s.TrackAll then
+		for name, val in pairs(instance:GetAttributes()) do
+			table.insert(allProps, {Name = name, Value = val})
+		end
+		for _, child in ipairs(instance:GetChildren()) do
+			if child:IsA("ValueBase") then
+				table.insert(allProps, {Name = child.Name, Value = child.Value})
+			end
+		end
+	elseif s.TrackedProperties then
+		for propName, active in pairs(s.TrackedProperties) do
+			if active then
+				local val = instance:GetAttribute(propName)
+				if val == nil then
+					local valObj = instance:FindFirstChild(propName)
+					if valObj and valObj:IsA("ValueBase") then
+						val = valObj.Value
+					end
+				end
+				if val ~= nil then
+					table.insert(allProps, {Name = propName, Value = val})
+				end
+			end
+		end
+	end
+
+	if #allProps == 0 then
+		objs.PropertyString = ""
+		return ""
+	end
+
+	table.sort(allProps, function(a, b) return a.Name:lower() < b.Name:lower() end)
+	
+	local result = {}
+	for _, p in ipairs(allProps) do
+		if type(p.Value) == "boolean" then
+			table.insert(result, p.Value and ("\n[" .. p.Name .. "]") or ("\n[Not " .. p.Name .. "]"))
+		else
+			table.insert(result, "\n[" .. p.Name .. ": " .. tostring(p.Value) .. "]")
+		end
+	end
+	
+	local str = table.concat(result)
+	objs.PropertyString = str
+	return str
+end
+
 local function createEsp(instance, source)
 	if not ALIVE then return end
 	if espObjects[instance] then return end
@@ -1306,37 +1364,40 @@ local function createEsp(instance, source)
 		tl.Parent = bg
 		bg.Parent = rootPart
 		
-		local hl = nil
-		if #activeHighlights < SETTINGS.MaxHighlights then
+		local hl = table.remove(highlightPool)
+		if not hl then
 			hl = Instance.new("Highlight")
-			hl.Adornee = instance
-			hl.FillColor = color
 			hl.OutlineColor = Color3.new(1, 1, 1)
 			hl.FillTransparency = 0.6
 			hl.Parent = PLAYER_GUI
-			janitor:Add(hl, nil, "Highlight")
-			table.insert(activeHighlights, instance)
-			activeHighlightsSet[instance] = true
-		else
-			-- Recycle
+		end
+
+		if #activeHighlights >= SETTINGS.MaxHighlights then
+			-- Recycle oldest
 			local old = table.remove(activeHighlights, 1)
-			if old then 
-				activeHighlightsSet[old] = nil 
-				if espObjects[old] and espObjects[old].Janitor then
-					espObjects[old].Janitor:Remove("Highlight")
-					espObjects[old].Highlight = nil
+			if old then
+				activeHighlightsSet[old] = nil
+				local oldObjs = espObjects[old]
+				if oldObjs then
+					oldObjs.Janitor:Remove("Highlight")
+					oldObjs.Highlight = nil
 				end
 			end
-			hl = Instance.new("Highlight")
-			hl.Adornee = instance
-			hl.FillColor = color
-			hl.OutlineColor = Color3.new(1, 1, 1)
-			hl.FillTransparency = 0.6
-			hl.Parent = PLAYER_GUI
-			janitor:Add(hl, nil, "Highlight")
-			table.insert(activeHighlights, instance)
-			activeHighlightsSet[instance] = true
 		end
+
+		hl.Adornee = instance
+		hl.FillColor = color
+		hl.Enabled = true
+		
+		-- Use Janitor to return to pool on cleanup
+		janitor:Add(function()
+			hl.Enabled = false
+			hl.Adornee = nil
+			table.insert(highlightPool, hl)
+		end, nil, "Highlight")
+
+		table.insert(activeHighlights, instance)
+		activeHighlightsSet[instance] = true
 		
 		local objs = { 
 			Janitor = janitor, 
@@ -1344,11 +1405,43 @@ local function createEsp(instance, source)
 			Highlight = hl, 
 			Label = tl, 
 			Source = (source ~= instance) and source or nil, 
-			Root = (rootPart ~= instance) and rootPart or nil 
+			Root = (rootPart ~= instance) and rootPart or nil,
+			PropertyString = "",
+			LastDistance = -1,
+			LastPropertyString = "",
+			LastColor = nil
 		}
 		espObjects[instance] = objs
 		espObjectCount = espObjectCount + 1
 
+		-- OPTIMIZATION: Event-driven property tracking instead of polling
+		janitor:Add(instance.AttributeChanged:Connect(function()
+			updateEspPropertyString(instance)
+		end))
+		janitor:Add(instance.ChildAdded:Connect(function(child)
+			if child:IsA("ValueBase") then
+				janitor:Add(child.Changed:Connect(function() updateEspPropertyString(instance) end), "Disconnect", "Val_" .. child.Name)
+				updateEspPropertyString(instance)
+			end
+		end))
+		janitor:Add(instance.ChildRemoved:Connect(function(child)
+			if child:IsA("ValueBase") then
+				janitor:Remove("Val_" .. child.Name)
+				updateEspPropertyString(instance)
+			end
+		end))
+		-- Initial scan
+		for _, child in ipairs(instance:GetChildren()) do
+			if child:IsA("ValueBase") then
+				janitor:Add(child.Changed:Connect(function() updateEspPropertyString(instance) end), "Disconnect", "Val_" .. child.Name)
+			end
+		end
+		updateEspPropertyString(instance)
+
+		-- OPTIMIZATION: Immediate cleanup on destruction
+		janitor:Add(instance.Destroying:Connect(function()
+			removeEsp(instance)
+		end))
 	end
 end
 
@@ -1388,6 +1481,11 @@ local function toggleEsp(instance, forceState)
 					if child:IsA("Model") or child:IsA("BasePart") then
 						task.defer(function() createEsp(child, instance) end)
 					end
+				end))
+				
+				-- OPTIMIZATION: Immediate folder cleanup on destruction
+				janitor:Add(instance.Destroying:Connect(function()
+					toggleEsp(instance, false)
 				end))
 
 				watchedFolders[instance] = { Janitor = janitor }
@@ -1602,9 +1700,8 @@ local function releaseNodeToPool(node)
 	table.insert(nodePool, node)
 end
 
-local function buildFlatList(list, instance, depth)
+local function buildFlatList(list, instance, depth, query)
 	if not ALIVE or depth > 50 or #list > 5000 then return end
-	local query = searchText ~= "" and searchText:lower() or nil
 	local matches = true
 	if query then
 		if not instance.Name:lower():find(query, 1, true) then matches = false end
@@ -1619,7 +1716,7 @@ local function buildFlatList(list, instance, depth)
 	if (not query and expandedNodes[instance]) or (query and matches) then
 		local children = instance:GetChildren()
 		for i = 1, #children do
-			buildFlatList(list, children[i], depth + 1)
+			buildFlatList(list, children[i], depth + 1, query)
 		end
 	end
 end
@@ -1924,8 +2021,9 @@ refreshTree = function()
 	end
 	table.clear(currentFlatList)
 
+	local query = searchText ~= "" and searchText:lower() or nil
 	for _, child in pairs(rootDirectory:GetChildren()) do
-		buildFlatList(currentFlatList, child, 0)
+		buildFlatList(currentFlatList, child, 0, query)
 	end
 	
 	explorerScroll.CanvasSize = UDim2.new(0, 0, 0, #currentFlatList * 20)
@@ -1941,7 +2039,7 @@ addConnection(searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	searchText = searchBox.Text
 	searchDebounceToken = searchDebounceToken + 1
 	local myToken = searchDebounceToken
-	task.wait(0.3)
+	task.wait(0.5)
 	-- Only refresh if this is still the latest search request
 	if searchDebounceToken == myToken and ALIVE then 
 		refreshTree() 
@@ -1993,6 +2091,7 @@ addConnection(exportBtn.MouseButton1Click:Connect(function()
 end))
 
 -- Animation Loop
+-- Animation Loop (Optimized)
 task.spawn(function()
 	local updateCounter = 0
 	while ALIVE and screenGui.Parent do
@@ -2000,126 +2099,67 @@ task.spawn(function()
 		local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
 		
 		pcall(function()
-			
 			-- Get player position for distance calc
 			local playerPos = nil
 			local char = PLAYER.Character
-			if char then
-				local hrp = char:FindFirstChild("HumanoidRootPart")
-				if hrp then playerPos = hrp.Position end
-			end
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if hrp then playerPos = hrp.Position end
 			
 			local showNames = SETTINGS.ShowNames
 			local verticalOffset = SETTINGS.VerticalOffset
 			local expectedOffset = Vector3.new(0, verticalOffset, 0)
 
 			for inst, objs in pairs(espObjects) do
-				if inst and inst:IsDescendantOf(game) then
-					-- Resolve Settings
-					local source = objs.Source or inst
-					local s = targetSettings[source]
-					local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
+				-- Resolve Settings
+				local source = objs.Source or inst
+				local s = targetSettings[source]
+				local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
+				
+				local label = objs.Label
+				if label and label.Parent then 
+					if label.TextColor3 ~= color then label.TextColor3 = color end
+					if label.Visible ~= showNames then label.Visible = showNames end
 					
-					local label = objs.Label
-					if label and label.Parent then 
-						if label.TextColor3 ~= color then label.TextColor3 = color end
-						if label.Visible ~= showNames then label.Visible = showNames end
+					-- OPTIMIZATION: Only rebuild text if distance or properties changed
+					if showNames then
+						local dist = -1
+						local root = objs.Root or inst
+						local targetPos = (root and root:IsA("BasePart")) and root.Position or nil
 						
-						-- Update distance display (Staggered every 5 frames)
-						if updateCounter % 5 == 0 and showNames then
-							local root = objs.Root or inst
-							local targetPos = (root and root:IsA("BasePart")) and root.Position or nil
-							if playerPos and targetPos then
-								local dist = math.floor((playerPos - targetPos).Magnitude)
-								local baseText = inst.Name .. " [" .. dist .. "m]"
-								
-								-- Add Tracked Properties
-								local propText = ""
-								if s then
-									if s.TrackAll then
-										local allProps = {}
-										-- Collect attributes
-										for name, val in pairs(inst:GetAttributes()) do
-											table.insert(allProps, {Name = name, Value = val})
-										end
-										-- Collect ValueBase
-										for _, child in ipairs(inst:GetChildren()) do
-											if child:IsA("ValueBase") then
-												table.insert(allProps, {Name = child.Name, Value = child.Value})
-											end
-										end
-										-- Sort by name
-										table.sort(allProps, function(a, b) return a.Name:lower() < b.Name:lower() end)
-										
-										for _, p in ipairs(allProps) do
-											if type(p.Value) == "boolean" then
-												propText = propText .. (p.Value and "\n[" .. p.Name .. "]" or "\n[Not " .. p.Name .. "]")
-											else
-												propText = propText .. "\n[" .. p.Name .. ": " .. tostring(p.Value) .. "]"
-											end
-										end
-									elseif s.TrackedProperties then
-										for propName, active in pairs(s.TrackedProperties) do
-											if active then
-												local success, val = pcall(function()
-													local v = inst:GetAttribute(propName)
-													if v == nil then
-														local valObj = inst:FindFirstChild(propName)
-														if valObj and valObj:IsA("ValueBase") then
-															v = valObj.Value
-														end
-													end
-													return v
-												end)
-												
-												if success and val ~= nil then
-													if type(val) == "boolean" then
-														propText = propText .. (val and "\n[" .. propName .. "]" or "\n[Not " .. propName .. "]")
-													else
-														propText = propText .. "\n[" .. propName .. ": " .. tostring(val) .. "]"
-													end
-												end
-											end
-										end
-									end
-								end
+						if playerPos and targetPos then
+							dist = math.floor((playerPos - targetPos).Magnitude)
+						end
 
-								local newText = baseText .. propText
-								if label.Text ~= newText then label.Text = newText end
-							elseif label.Text ~= inst.Name then
-								label.Text = inst.Name
+						if dist ~= objs.LastDistance or objs.PropertyString ~= objs.LastPropertyString then
+							objs.LastDistance = dist
+							objs.LastPropertyString = objs.PropertyString
+							
+							if dist ~= -1 then
+								label.Text = inst.Name .. " [" .. dist .. "m]" .. (objs.PropertyString or "")
+							else
+								label.Text = inst.Name .. (objs.PropertyString or "")
 							end
 						end
+					elseif label.Text ~= inst.Name then
+						label.Text = inst.Name
 					end
-
-					local hl = objs.Highlight
-					if hl and hl.Parent and hl.Adornee then
-						if hl.FillColor ~= color then
-							hl.FillColor = color
-						end
-						if hl.OutlineColor ~= color then
-							hl.OutlineColor = color
-						end
-						if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
-					end
-
-					local gui = objs.GUI
-					if gui and gui.Parent then
-						if not gui.Enabled then gui.Enabled = true end
-						if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
-					end
-				else
-					if inst and espTargets[inst] then toggleEsp(inst, false) end
-					removeEsp(inst)
 				end
-			end
-			
-			-- Periodic check for watched folders (Staggered every 20 frames)
-			if updateCounter % 20 == 0 then
-				for inst, _ in pairs(watchedFolders) do
-					if not inst:IsDescendantOf(game) then
-						toggleEsp(inst, false)
+
+				local hl = objs.Highlight
+				if hl and hl.Parent and hl.Adornee then
+					-- OPTIMIZATION: Only update Highlight color if it changed
+					if objs.LastColor ~= color then
+						objs.LastColor = color
+						hl.FillColor = color
+						hl.OutlineColor = color
 					end
+					if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
+				end
+
+				local gui = objs.GUI
+				if gui and gui.Parent then
+					if not gui.Enabled then gui.Enabled = true end
+					if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
 				end
 			end
 		end)
@@ -2146,6 +2186,14 @@ local function ApplyTemplate()
 	local id = tostring(game.PlaceId)
 	local template = GAME_TEMPLATES[id]
 	if not template then return end
+	
+	-- Optimization: Pre-calculate candidate names to avoid GetFullName on every new instance
+	local candidates = {}
+	for _, entry in ipairs(template) do
+		local segments = entry.Path:split(".")
+		local leafName = segments[#segments]
+		candidates[leafName] = true
+	end
 	
 	local function checkAndApply(inst)
 		local relPath = getRelativePath(inst)
@@ -2181,12 +2229,17 @@ local function ApplyTemplate()
 			end
 		end
 
-		-- Dynamic loading
+		-- Dynamic loading (Optimized)
 		addConnection(Workspace.DescendantAdded:Connect(function(desc)
 			if not ALIVE then return end
+			
+			-- OPTIMIZATION: Quick filter by class and name before expensive path resolution
+			if not (desc:IsA("BasePart") or desc:IsA("Model")) then return end
+			if not candidates[desc.Name] then return end
+			
 			-- Brief delay to ensure properties/hierarchy are ready
 			task.delay(0.1, function()
-				if desc:IsDescendantOf(Workspace) then
+				if ALIVE and desc:IsDescendantOf(Workspace) then
 					checkAndApply(desc)
 				end
 			end)
