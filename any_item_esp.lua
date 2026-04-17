@@ -118,6 +118,16 @@ local isRendering = false
 local renderRequest = 0
 local searchDebounceToken = 0
 
+-- UI State & Pools (Forward Declared for UnloadScript)
+local rowPool = {}
+local activeRowPool = {}
+local nodePool = {}
+local activeRowConns = setmetatable({}, {__mode = "k"})
+local currentFlatList = {}
+local activeRows = {} 
+local activeFlatList = {}
+local activeTabRows = {}
+
 -- Connection Manager (fixes memory leaks)
 local connections = {} -- { [RBXScriptConnection] = true }
 local function addConnection(conn)
@@ -160,11 +170,6 @@ local COLOR_PRESETS = {
 	{Name = "Pink", Color = Color3.fromRGB(255, 192, 203)},
 	{Name = "White", Color = Color3.fromRGB(255, 255, 255)}
 }
-
--- State Tables (Forward Declared for UnloadScript)
-local activeRowConns = setmetatable({}, {__mode = "k"})
-local activeRowPool = {}
-local rowPool = {}
 
 -- Cleanup Function
 local function UnloadScript(screenGui)
@@ -211,6 +216,8 @@ local function UnloadScript(screenGui)
 	table.clear(nodePool)
 	table.clear(currentFlatList)
 	table.clear(activeFlatList)
+	table.clear(activeRows)
+	table.clear(activeTabRows)
 	currentSelection = nil
 	
 	watchedFolderCount = 0
@@ -1397,6 +1404,7 @@ local function getNode(info, depth)
 end
 
 local function releaseNodeToPool(node)
+	if not node then return end
 	node.Info = nil
 	table.insert(nodePool, node)
 end
@@ -1423,13 +1431,6 @@ local function buildFlatList(list, instance, depth)
 	end
 end
 
-local currentFlatList = {}
-local activeRows = {} -- { [index] = Frame }
-
-local activeFlatList = {}
-local activeTabRows = {} -- { [index] = Frame }
-
-
 local function updateActiveViewport()
 	if not ALIVE then return end
 	local viewHeight = activeScroll.AbsoluteSize.Y
@@ -1448,9 +1449,8 @@ local function updateActiveViewport()
 
 	-- Render visible rows
 	for i = startIdx, endIdx do
-		local node = activeFlatList[i]
-		local inst = node and node[1]
-		if inst and not activeTabRows[i] then
+		local inst = activeFlatList[i]
+		if inst and inst:IsDescendantOf(game) and not activeTabRows[i] then
 			local row = getActiveRowFromPool()
 			local expectedPos = UDim2.new(0, 0, 0, (i - 1) * 40)
 			if row.Position ~= expectedPos then row.Position = expectedPos end
@@ -1738,20 +1738,18 @@ refreshActiveList = function()
 	
 	activeFlatList = {}
 	for inst, _ in pairs(espTargets) do 
-		table.insert(activeFlatList, setmetatable({inst}, {__mode = "v"})) 
+		if inst:IsDescendantOf(game) then
+			table.insert(activeFlatList, inst) 
+		end
 	end
 	for inst, _ in pairs(watchedFolders) do 
-		if not espTargets[inst] then 
-			table.insert(activeFlatList, setmetatable({inst}, {__mode = "v"})) 
+		if not espTargets[inst] and inst:IsDescendantOf(game) then 
+			table.insert(activeFlatList, inst) 
 		end
 	end
 	
-	table.sort(activeFlatList, function(a,b) 
-		local instA = a[1]
-		local instB = b[1]
-		if not instA then return false end
-		if not instB then return true end
-		return instA.Name < instB.Name 
+	table.sort(activeFlatList, function(a, b) 
+		return a.Name:lower() < b.Name:lower() 
 	end)
 	
 	activeScroll.CanvasSize = UDim2.new(0, 0, 0, #activeFlatList * 40)
@@ -1793,7 +1791,7 @@ task.spawn(function()
 						-- Update distance display (Staggered every 5 frames)
 						if updateCounter % 5 == 0 and showNames then
 							local root = objs.Root or inst
-							local targetPos = root:IsA("BasePart") and root.Position or nil
+							local targetPos = (root and root:IsA("BasePart")) and root.Position or nil
 							if playerPos and targetPos then
 								local dist = math.floor((playerPos - targetPos).Magnitude)
 								local baseText = inst.Name .. " [" .. dist .. "m]"
@@ -1803,15 +1801,18 @@ task.spawn(function()
 								if s and s.TrackedProperties then
 									for propName, active in pairs(s.TrackedProperties) do
 										if active then
-											local val = inst:GetAttribute(propName)
-											if val == nil then
-												local valObj = inst:FindFirstChild(propName)
-												if valObj and valObj:IsA("ValueBase") then
-													val = valObj.Value
+											local success, val = pcall(function()
+												local v = inst:GetAttribute(propName)
+												if v == nil then
+													local valObj = inst:FindFirstChild(propName)
+													if valObj and valObj:IsA("ValueBase") then
+														v = valObj.Value
+													end
 												end
-											end
+												return v
+											end)
 											
-											if val ~= nil then
+											if success and val ~= nil then
 												if type(val) == "boolean" then
 													propText = propText .. (val and " [" .. propName .. "]" or " [Not " .. propName .. "]")
 												else
@@ -1831,7 +1832,7 @@ task.spawn(function()
 					end
 
 					local hl = objs.Highlight
-					if hl and hl.Parent then
+					if hl and hl.Parent and hl.Adornee then
 						if hl.FillColor ~= color then
 							hl.FillColor = color
 						end
