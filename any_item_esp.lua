@@ -678,6 +678,8 @@ propertiesScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 propertiesScroll.ScrollBarThickness = 4
 propertiesScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
 propertiesScroll.BorderSizePixel = 0
+propertiesScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+propertiesScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 propertiesScroll.Parent = selectionSettingsFrame
 addCorners(propertiesScroll, 4)
 
@@ -724,10 +726,7 @@ local function updatePropertySettings()
 		end
 	end
 	
-	local rowCount = 0
-
 	-- Track All Toggle
-	rowCount = rowCount + 1
 	local trackAllRow = Instance.new("Frame")
 	trackAllRow.Name = "0_TrackAll"
 	trackAllRow.Size = UDim2.new(1, 0, 0, 24)
@@ -762,7 +761,6 @@ local function updatePropertySettings()
 	end)
 
 	for name, _ in pairs(props) do
-		rowCount = rowCount + 1
 		local row = Instance.new("Frame")
 		row.Name = name
 		row.Size = UDim2.new(1, 0, 0, 24)
@@ -796,8 +794,6 @@ local function updatePropertySettings()
 			updatePropertySettings()
 		end)
 	end
-	
-	propertiesScroll.CanvasSize = UDim2.new(0, 0, 0, rowCount * 24)
 end
 
 -- Update logic for selection UI
