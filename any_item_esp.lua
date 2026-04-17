@@ -1296,7 +1296,6 @@ local function createEsp(instance, source)
 		tl.Text = instance.Name
 		tl.Font = FONT_BOLD
 		tl.TextSize = 14
-		tl.TextYAlignment = Enum.TextYAlignment.Bottom
 		
 		if not (s and s.Rainbow) then
 			tl.TextColor3 = color
