@@ -1279,7 +1279,7 @@ local function createEsp(instance, source)
 		local janitor = Janitor.new()
 		
 		local bg = Instance.new("BillboardGui")
-		bg.Size = UDim2.new(0, 150, 0, 60)
+		bg.Size = UDim2.new(0, 200, 0, 150)
 		bg.AlwaysOnTop = true
 		bg.Name = "ESPTag"
 		bg.Adornee = instance
@@ -1296,6 +1296,7 @@ local function createEsp(instance, source)
 		tl.Text = instance.Name
 		tl.Font = FONT_BOLD
 		tl.TextSize = 14
+		tl.TextYAlignment = Enum.TextYAlignment.Bottom
 		
 		if not (s and s.Rainbow) then
 			tl.TextColor3 = color
@@ -2053,9 +2054,9 @@ task.spawn(function()
 										
 										for _, p in ipairs(allProps) do
 											if type(p.Value) == "boolean" then
-												propText = propText .. (p.Value and " [" .. p.Name .. "]" or " [Not " .. p.Name .. "]")
+												propText = propText .. (p.Value and "\n[" .. p.Name .. "]" or "\n[Not " .. p.Name .. "]")
 											else
-												propText = propText .. " [" .. p.Name .. ": " .. tostring(p.Value) .. "]"
+												propText = propText .. "\n[" .. p.Name .. ": " .. tostring(p.Value) .. "]"
 											end
 										end
 									elseif s.TrackedProperties then
@@ -2074,9 +2075,9 @@ task.spawn(function()
 												
 												if success and val ~= nil then
 													if type(val) == "boolean" then
-														propText = propText .. (val and " [" .. propName .. "]" or " [Not " .. propName .. "]")
+														propText = propText .. (val and "\n[" .. propName .. "]" or "\n[Not " .. propName .. "]")
 													else
-														propText = propText .. " [" .. propName .. ": " .. tostring(val) .. "]"
+														propText = propText .. "\n[" .. propName .. ": " .. tostring(val) .. "]"
 													end
 												end
 											end
@@ -2084,7 +2085,7 @@ task.spawn(function()
 									end
 								end
 
-								local newText = baseText .. (propText ~= "" and "\n" .. propText or "")
+								local newText = baseText .. propText
 								if label.Text ~= newText then label.Text = newText end
 							elseif label.Text ~= inst.Name then
 								label.Text = inst.Name
