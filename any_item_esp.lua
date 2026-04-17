@@ -123,6 +123,7 @@ local rowPool = {}
 local activeRowPool = {}
 local nodePool = {}
 local activeRowConns = setmetatable({}, {__mode = "k"})
+local rowToInstance = setmetatable({}, {__mode = "k"})
 local currentFlatList = {}
 local activeRows = {} 
 local activeFlatList = {}
@@ -211,6 +212,7 @@ local function UnloadScript(screenGui)
 	table.clear(espTargets)
 	table.clear(targetSettings)
 	table.clear(activeRowConns)
+	table.clear(rowToInstance)
 	table.clear(activeRowPool)
 	table.clear(rowPool)
 	table.clear(nodePool)
@@ -1386,7 +1388,7 @@ end
 local function releaseActiveRowToPool(row)
 	row.Visible = false
 	row.Parent = nil
-	row:SetAttribute("Target", nil)
+	rowToInstance[row] = nil
 	table.insert(activeRowPool, row)
 end
 
@@ -1474,7 +1476,7 @@ local function updateActiveViewport()
 				
 				local tpBtn = row:FindFirstChild("TeleportBtn")
 				table.insert(rowConns, tpBtn.MouseButton1Click:Connect(function()
-					local targetInst = row:GetAttribute("Target")
+					local targetInst = rowToInstance[row]
 					if not targetInst then return end
 					local char = PLAYER.Character
 					if char and char:FindFirstChild("HumanoidRootPart") then
@@ -1493,7 +1495,7 @@ local function updateActiveViewport()
 
 				local copyBtn = row:FindFirstChild("CopyBtn")
 				table.insert(rowConns, copyBtn.MouseButton1Click:Connect(function()
-					local targetInst = row:GetAttribute("Target")
+					local targetInst = rowToInstance[row]
 					if not targetInst then return end
 					local path = targetInst:GetFullName()
 					if setclipboard then setclipboard(path)
@@ -1508,7 +1510,7 @@ local function updateActiveViewport()
 
 				local setsBtn = row:FindFirstChild("SettingsBtn")
 				table.insert(rowConns, setsBtn.MouseButton1Click:Connect(function()
-					local targetInst = row:GetAttribute("Target")
+					local targetInst = rowToInstance[row]
 					if not targetInst then return end
 					currentSelection = targetInst
 					selTitle.Text = "Settings: " .. targetInst.Name
@@ -1519,7 +1521,7 @@ local function updateActiveViewport()
 
 				local removeBtn = row:FindFirstChild("RemoveBtn")
 				table.insert(rowConns, removeBtn.MouseButton1Click:Connect(function()
-					local targetInst = row:GetAttribute("Target")
+					local targetInst = rowToInstance[row]
 					if not targetInst then return end
 					toggleEsp(targetInst, false)
 				end))
@@ -1527,7 +1529,7 @@ local function updateActiveViewport()
 				activeRowConns[row] = rowConns
 			end
 			
-			row:SetAttribute("Target", inst)
+			rowToInstance[row] = inst
 			row.Parent = activeScroll
 			activeTabRows[i] = row
 		end
