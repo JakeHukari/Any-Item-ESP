@@ -118,7 +118,9 @@ local GAME_TEMPLATES = {
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
 		{Path = "Police", Color = Color3.fromRGB(0, 0, 255)},
 		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
-		{Path = "Cameras", Color = Color3.fromRGB(255, 255, 0)}
+		{Path = "Cameras", Color = Color3.fromRGB(255, 255, 0)},
+		{Path = "Map.Lasers", Color = Color3.fromRGB(0, 213, 91)},
+		{Path = "Map.PowerBoxes", Color = Color3.fromRGB(255, 255, 255)}
 	},
 	["1213821265"] = { -- NTRTY - RNB
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
