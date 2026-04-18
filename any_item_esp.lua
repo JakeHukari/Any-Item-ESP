@@ -98,6 +98,10 @@ local GAME_TEMPLATES = {
 		{Path = "Items.InventoryBags", Color = Color3.fromRGB(0, 255, 255), TrackAll = true},
 		{Path = "Items.Items.Diamond", Color = Color3.fromRGB(255, 0, 255)}
 	},
+	["18214855317"] = { -- SVNH_LFE
+		{Path = "PickupableItemsFolder", Color = Color3.fromRGB(255, 0, 166), Rainbow = true, TrackedProperties = {CalculatedMass = true}},
+		{Path = "PlayerEggNestsFolder", Color = Color3.fromRGB(0, 255, 249), Rainbow = true}
+	},
 	["3107097964"] = { -- NTRTY - DWNTWN_BNK
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
 		{Path = "Police", Color = Color3.fromRGB(0, 0, 255)},
