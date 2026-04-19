@@ -79,7 +79,7 @@ end
 
 -- Settings Defaults
 local SETTINGS = {
-	MaxHighlights = 50,
+	MaxHighlights = 100,
 	-- RainbowMode = true, -- REMOVED GLOBAL
 	ShowNames = true,
 	MaxTotalObjects = 1000,
