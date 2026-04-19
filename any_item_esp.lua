@@ -114,6 +114,12 @@ local GAME_TEMPLATES = {
 		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
+	["104434907248230"] = { -- NTRTY - MDWLND_BNK
+		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
+		{Path = "Police", Color = Color3.fromRGB(0, 147, 255), TrackedProperties = {RNGGroup = true, Health = true, Variant = true}},
+		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
+		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
+	},
 	["89087447777289"] = { -- NTRTY - ART_GLRY
 		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Map.Lasers", Color = Color3.fromRGB(0, 213, 91)},
