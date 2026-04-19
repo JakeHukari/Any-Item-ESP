@@ -89,7 +89,7 @@ local SETTINGS = {
 -- Game-Specific Templates
 local GAME_TEMPLATES = {
 	["2474168535"] = {
-		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {AttackTarget = true}},
+		{Path = "Animals", Color = Color3.fromRGB(255, 192, 203), TrackedProperties = {StateName = true, AttackTarget = true}},
 		{Path = "Items.Items.Ruby", Color = Color3.fromRGB(255, 0, 255)},
 		{Path = "ChestFolder", Color = Color3.fromRGB(255, 255, 0), Rainbow = true, TrackedProperties = {Opened = true}},
 		{Path = "Items.Items.Emerald", Color = Color3.fromRGB(255, 0, 255)},
