@@ -104,18 +104,25 @@ local GAME_TEMPLATES = {
 	},
 	["3107097964"] = { -- NTRTY - DWNTWN_BNK
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
-		{Path = "Police", Color = Color3.fromRGB(0, 0, 255)},
+		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
 	["1242009557"] = { -- NTRTY - BRCK_BNK
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
-		{Path = "Police", Color = Color3.fromRGB(0, 0, 255)},
+		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
 	["89087447777289"] = { -- NTRTY - ART_GLRY
-		{Path = "Police", Color = Color3.fromRGB(0, 87, 255)},
+		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
+		{Path = "Map.Lasers", Color = Color3.fromRGB(0, 213, 91)},
+		{Path = "Map.PowerBoxes", Color = Color3.fromRGB(255, 255, 255)},
+		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
+		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
+	},
+	["2088934656"] = { -- NTRTY - SHDOW
+		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Map.Lasers", Color = Color3.fromRGB(0, 213, 91)},
 		{Path = "Map.PowerBoxes", Color = Color3.fromRGB(255, 255, 255)},
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
@@ -124,7 +131,7 @@ local GAME_TEMPLATES = {
 	["1213821265"] = { -- NTRTY - RNB
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
 		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
-		{Path = "Police", Color = Color3.fromRGB(255, 0, 62)},
+		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
 	["863266079"] = { -- AR2
