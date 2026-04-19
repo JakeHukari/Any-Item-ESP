@@ -122,6 +122,7 @@ local GAME_TEMPLATES = {
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
 	["2088934656"] = { -- NTRTY - SHDOW
+		{Path = "Lootables.DepositGoldBar", Color = Color3.fromRGB(255, 165, 0)},
 		{Path = "Map.EasterEggCrystal", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
 		{Path = "Map.EasterEgg", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
 		{Path = "Map.ShadowBoxes", Color = Color3.fromRGB(255, 165, 0)},
@@ -129,10 +130,9 @@ local GAME_TEMPLATES = {
 		{Path = "BigLoot", Color = Color3.fromRGB(255, 165, 0)},
 		{Path = "Map.EasterEggBlueBook", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
 		{Path = "Map.EasterEggCrystal", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
-		{Path = "Lootables", Color = Color3.fromRGB(255, 165, 0)},
+		{Path = "Citizens", Color = Color3.fromRGB(255, 255, 255)},
 		{Path = "Map.EasterEggCrystal", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
-		{Path = "Map.EasterEggCrystal", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
-		{Path = "Citizens", Color = Color3.fromRGB(255, 255, 255)}
+		{Path = "Map.EasterEggCrystal", Color = Color3.fromRGB(255, 255, 255), Rainbow = true}
 	},
 	["1213821265"] = { -- NTRTY - RNB
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
