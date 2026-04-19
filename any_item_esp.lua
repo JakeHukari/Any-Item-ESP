@@ -125,6 +125,7 @@ local GAME_TEMPLATES = {
 		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Citizens", Color = Color3.fromRGB(255, 255, 255)},
 		{Path = "BigLoot", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
+		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
 		{Path = "Lootables", Color = Color3.fromRGB(255, 165, 0)}
 	},
 	["1213821265"] = { -- NTRTY - RNB
