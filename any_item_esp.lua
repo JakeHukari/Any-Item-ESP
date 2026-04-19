@@ -146,6 +146,10 @@ local GAME_TEMPLATES = {
 		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Type = true, Health = true, Variant = true, RNGGroup = true}},
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
+	["1448835396"] = { -- NTRTY - DMND_STR
+		{Path = "Citizens", Color = Color3.fromRGB(255, 255, 255)},
+		{Path = "Police", Color = Color3.fromRGB(0, 123, 255)}
+	},
 	["863266079"] = { -- AR2
 		{Path = "Zombies", Color = Color3.fromRGB(0, 191, 108)}, 
 		{Path = "Vehicles", Color = Color3.fromRGB(255, 255, 255)}
