@@ -272,7 +272,9 @@ local function UnloadScript(screenGui)
 	table.clear(targetSettings)
 	table.clear(activeRowConns)
 	table.clear(rowToInstance)
+	for _, row in ipairs(activeRowPool) do row:Destroy() end
 	table.clear(activeRowPool)
+	for _, row in ipairs(rowPool) do row:Destroy() end
 	table.clear(rowPool)
 	table.clear(nodePool)
 	for _, hl in ipairs(highlightPool) do hl:Destroy() end
@@ -1473,6 +1475,12 @@ local function createEsp(instance, source)
 		janitor:Add(instance.Destroying:Connect(function()
 			removeEsp(instance)
 		end))
+
+		janitor:Add(instance.AncestryChanged:Connect(function()
+			if not instance:IsDescendantOf(game) then
+				removeEsp(instance)
+			end
+		end))
 	end
 end
 
@@ -1511,6 +1519,13 @@ local function toggleEsp(instance, forceState)
 					if not ALIVE then return end
 					if child:IsA("Model") or child:IsA("BasePart") then
 						task.defer(function() createEsp(child, instance) end)
+					end
+				end))
+
+				janitor:Add(instance.ChildRemoved:Connect(function(child)
+					local objs = espObjects[child]
+					if objs and objs.Source == instance then
+						removeEsp(child)
 					end
 				end))
 				
@@ -1716,18 +1731,17 @@ end
 local nodePool = {}
 local function getNode(info, depth)
 	local node = table.remove(nodePool)
-	local weakInfo = setmetatable({info}, {__mode = "v"})
 	if node then
-		node.Info = weakInfo
+		node.Instance = info
 		node.Depth = depth
 		return node
 	end
-	return {Info = weakInfo, Depth = depth}
+	return {Instance = info, Depth = depth}
 end
 
 local function releaseNodeToPool(node)
 	if not node then return end
-	node.Info = nil
+	node.Instance = nil
 	table.insert(nodePool, node)
 end
 
@@ -1902,7 +1916,7 @@ local function updateViewport()
 	-- Render visible rows
 	for i = startIdx, endIdx do
 		local node = currentFlatList[i]
-		local inst = node and node.Info and node.Info[1]
+		local inst = node and node.Instance
 		
 		if inst and not activeRows[i] then
 			local depth = node.Depth
@@ -2001,7 +2015,7 @@ addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 		local relativeY = mousePos.Y - scrollPos.Y + explorerScroll.CanvasPosition.Y
 		local idx = math.floor(relativeY / 20) + 1
 		local node = currentFlatList[idx]
-		local inst = node and node.Info and node.Info[1]
+		local inst = node and node.Instance
 		if not inst then return end
 		
 		local depth = node.Depth
@@ -2202,10 +2216,24 @@ task.spawn(function()
 			end
 		end
 		
-		-- Update status bar periodically
+		-- Update status bar and perform sweep periodically
 		updateCounter = updateCounter + 1
 		if updateCounter % 10 == 0 then
 			updateStatusBar()
+		end
+
+		if updateCounter % 50 == 0 then
+			-- Cleanup Sweep
+			for inst, _ in pairs(espObjects) do
+				if not inst:IsDescendantOf(game) then
+					removeEsp(inst)
+				end
+			end
+			for inst, _ in pairs(watchedFolders) do
+				if not inst:IsDescendantOf(game) then
+					toggleEsp(inst, false)
+				end
+			end
 		end
 		
 		task.wait(0.1)
