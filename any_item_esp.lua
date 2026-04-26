@@ -164,9 +164,9 @@ local rootDirectory = Workspace
 local expandedNodes = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean }
 local espTargets = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean } (Manual Toggles)
 local targetSettings = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Color = Color3, Rainbow = boolean } }
-local watchedFolders = setmetatable({}, {__mode = "k"}) -- { [Instance] = { ChildConn, DestroyConn, Janitor } } (Folder Watch)
+local watchedFolders = {} -- { [Instance] = { ChildConn, DestroyConn, Janitor } } (Folder Watch)
 local watchedFolderCount = 0
-local espObjects = setmetatable({}, {__mode = "k"}) -- { [Instance] = {GUI, Highlight, Source, Root, Janitor, PropertyString, LastDistance, LastColor} }
+local espObjects = {} -- { [Instance] = {GUI, Highlight, Source, Root, Janitor, PropertyString, LastDistance, LastColor} }
 local espObjectCount = 0
 local activeHighlights = {} -- List of instances with active Highlights
 local activeHighlightsSet = setmetatable({}, {__mode = "k"}) -- { [Instance] = true } for O(1) lookup
@@ -468,20 +468,18 @@ addConnection(gameIdCopyBtn.MouseButton1Click:Connect(function()
 end))
 
 local function getRelativePath(instance)
-	local segments = {}
-	local curr = instance
-	while curr and curr ~= Workspace and curr ~= game do
-		table.insert(segments, 1, curr.Name)
-		curr = curr.Parent
+	local path = instance:GetFullName()
+	if path:sub(1, 10) == "Workspace." then
+		return path:sub(11)
 	end
-	return table.concat(segments, ".")
+	return path
 end
 
 local function resolvePath(root, path)
 	local segments = string.split(path, ".")
 	local current = root
 	for _, segment in ipairs(segments) do
-		current = current:FindFirstChild(segment)
+		current = current:WaitForChild(segment, 5)
 		if not current then return nil end
 	end
 	return current
@@ -1754,13 +1752,13 @@ local function buildFlatList(list, instance, depth, query)
 		if not instance.Name:lower():find(query, 1, true) then matches = false end
 	end
 	
-	local shouldShow = not query or (query and matches)
+	local shouldShow = not query or matches
 	
 	if shouldShow then
 		table.insert(list, getNode(instance, depth))
 	end
 	
-	if (not query and expandedNodes[instance]) or query then
+	if (not query and expandedNodes[instance]) or (query and matches) then
 		local children = instance:GetChildren()
 		for i = 1, #children do
 			buildFlatList(list, children[i], depth + 1, query)
@@ -2290,50 +2288,20 @@ local function ApplyTemplate()
 			end
 		end
 
-		-- Dynamic loading (Throttled Queue)
-		local descendantQueue = {}
-		local isProcessingQueue = false
-
-		local function processQueue()
-			if isProcessingQueue then return end
-			isProcessingQueue = true
-			
-			task.wait(0.5) -- Initial debounce
-			
-			local success, err = pcall(function()
-				local index = 1
-				while index <= #descendantQueue do
-					if not ALIVE then break end
-					local desc = descendantQueue[index]
-					if desc and desc:IsDescendantOf(Workspace) then
-						checkAndApply(desc)
-					end
-					
-					-- Yield if queue is large to prevent frame drops
-					if index % 20 == 0 then
-						RunService.Heartbeat:Wait()
-					end
-					index = index + 1
-				end
-			end)
-			
-			if not success then
-				warn("[Any_Item_ESP] Template queue error: " .. tostring(err))
-			end
-			
-			table.clear(descendantQueue)
-			isProcessingQueue = false
-		end
-
+		-- Dynamic loading (Optimized)
 		addConnection(Workspace.DescendantAdded:Connect(function(desc)
 			if not ALIVE then return end
 			
-			-- Quick filter before adding to queue
+			-- OPTIMIZATION: Quick filter by class and name before expensive path resolution
 			if not (desc:IsA("BasePart") or desc:IsA("Model")) then return end
 			if not candidates[desc.Name] then return end
 			
-			table.insert(descendantQueue, desc)
-			task.spawn(processQueue)
+			-- Brief delay to ensure properties/hierarchy are ready
+			task.delay(0.1, function()
+				if ALIVE and desc:IsDescendantOf(Workspace) then
+					checkAndApply(desc)
+				end
+			end)
 		end))
 	end)
 end
