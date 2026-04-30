@@ -83,6 +83,7 @@ local SETTINGS = {
 	-- RainbowMode = true, -- REMOVED GLOBAL
 	ShowNames = true,
 	MaxTotalObjects = 1000,
+	MaxWatchedFolders = 100,
 	VerticalOffset = 2
 }
 
@@ -164,7 +165,7 @@ local rootDirectory = Workspace
 local expandedNodes = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean }
 local espTargets = setmetatable({}, {__mode = "k"}) -- { [Instance] = boolean } (Manual Toggles)
 local targetSettings = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Color = Color3, Rainbow = boolean } }
-local watchedFolders = {} -- { [Instance] = { ChildConn, DestroyConn, Janitor } } (Folder Watch)
+local watchedFolders = setmetatable({}, {__mode = "k"}) -- { [Instance] = { ChildConn, DestroyConn, Janitor } } (Folder Watch)
 local watchedFolderCount = 0
 local espObjects = {} -- { [Instance] = {GUI, Highlight, Source, Root, Janitor, PropertyString, LastDistance, LastColor} }
 local espObjectCount = 0
@@ -1477,8 +1478,8 @@ local function createEsp(instance, source)
 		end))
 
 		janitor:Add(instance.AncestryChanged:Connect(function()
-			if not instance:IsDescendantOf(game) then
-				removeEsp(instance)
+			if not instance:IsDescendantOf(Workspace) then
+				toggleEsp(instance, false)
 			end
 		end))
 	end
@@ -1508,6 +1509,11 @@ local function toggleEsp(instance, forceState)
 	if isContainer then
 		if newState then
 			if not watchedFolders[instance] then
+				if watchedFolderCount >= SETTINGS.MaxWatchedFolders then
+					warn("[Any_Item_ESP] Max watched folders reached (" .. SETTINGS.MaxWatchedFolders .. ")")
+					espTargets[instance] = nil
+					return
+				end
 				watchedFolderCount = watchedFolderCount + 1
 				local janitor = Janitor.new()
 				
@@ -1532,6 +1538,12 @@ local function toggleEsp(instance, forceState)
 				-- OPTIMIZATION: Immediate folder cleanup on destruction
 				janitor:Add(instance.Destroying:Connect(function()
 					toggleEsp(instance, false)
+				end))
+
+				janitor:Add(instance.AncestryChanged:Connect(function()
+					if not instance:IsDescendantOf(Workspace) then
+						toggleEsp(instance, false)
+					end
 				end))
 
 				watchedFolders[instance] = { Janitor = janitor }
@@ -2225,12 +2237,12 @@ task.spawn(function()
 		if updateCounter % 50 == 0 then
 			-- Cleanup Sweep
 			for inst, _ in pairs(espObjects) do
-				if not inst:IsDescendantOf(game) then
-					removeEsp(inst)
+				if not inst:IsDescendantOf(Workspace) then
+					toggleEsp(inst, false)
 				end
 			end
 			for inst, _ in pairs(watchedFolders) do
-				if not inst:IsDescendantOf(game) then
+				if not inst:IsDescendantOf(Workspace) then
 					toggleEsp(inst, false)
 				end
 			end
