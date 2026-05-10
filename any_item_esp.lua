@@ -33,7 +33,8 @@ Janitor.__index = Janitor
 
 function Janitor.new()
 	return setmetatable({
-		_tasks = {}
+		_tasks = {},
+		_counter = 0
 	}, Janitor)
 end
 
@@ -41,7 +42,13 @@ function Janitor:Add(task, method, name)
 	if name then
 		self:Remove(name)
 	end
-	local key = name or #self._tasks + 1
+	local key
+	if name then
+		key = name
+	else
+		self._counter = self._counter + 1
+		key = self._counter
+	end
 	self._tasks[key] = {task, method}
 	return task
 end
@@ -1479,7 +1486,7 @@ local function createEsp(instance, source)
 
 		janitor:Add(instance.AncestryChanged:Connect(function()
 			if not instance:IsDescendantOf(Workspace) then
-				toggleEsp(instance, false)
+				removeEsp(instance)
 			end
 		end))
 	end
@@ -1561,6 +1568,8 @@ local function toggleEsp(instance, forceState)
 						removeEsp(child)
 					end
 				end
+			else
+				removeEsp(instance)
 			end
 		end
 	else
@@ -1736,6 +1745,14 @@ local function releaseActiveRowToPool(row)
 	row.Visible = false
 	row.Parent = nil
 	rowToInstance[row] = nil
+	local conns = activeRowConns[row]
+	if conns then
+		for _, conn in ipairs(conns) do
+			if conn.Connected then conn:Disconnect() end
+		end
+		table.clear(conns)
+		activeRowConns[row] = nil
+	end
 	table.insert(activeRowPool, row)
 end
 
@@ -2151,6 +2168,7 @@ end))
 -- Animation Loop (Optimized)
 task.spawn(function()
 	local updateCounter = 0
+	local lastDistanceUpdate = 0
 	while ALIVE and screenGui.Parent do
 		local globalHue = (tick() % 5) / 5
 		local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
@@ -2166,6 +2184,12 @@ task.spawn(function()
 			local verticalOffset = SETTINGS.VerticalOffset
 			local expectedOffset = Vector3.new(0, verticalOffset, 0)
 
+			local now = tick()
+			local shouldUpdateStrings = (now - lastDistanceUpdate >= 0.2)
+			if shouldUpdateStrings then
+				lastDistanceUpdate = now
+			end
+
 			for inst, objs in pairs(espObjects) do
 				-- Resolve Settings
 				local source = objs.Source or inst
@@ -2179,22 +2203,24 @@ task.spawn(function()
 					
 					-- OPTIMIZATION: Only rebuild text if distance or properties changed
 					if showNames then
-						local dist = -1
-						local root = objs.Root or inst
-						local targetPos = (root and root:IsA("BasePart")) and root.Position or nil
-						
-						if playerPos and targetPos then
-							dist = math.floor((playerPos - targetPos).Magnitude)
-						end
-
-						if dist ~= objs.LastDistance or objs.PropertyString ~= objs.LastPropertyString then
-							objs.LastDistance = dist
-							objs.LastPropertyString = objs.PropertyString
+						if shouldUpdateStrings then
+							local dist = -1
+							local root = objs.Root or inst
+							local targetPos = (root and root:IsA("BasePart")) and root.Position or nil
 							
-							if dist ~= -1 then
-								label.Text = inst.Name .. " [" .. dist .. "m]" .. (objs.PropertyString or "")
-							else
-								label.Text = inst.Name .. (objs.PropertyString or "")
+							if playerPos and targetPos then
+								dist = math.floor((playerPos - targetPos).Magnitude)
+							end
+
+							if dist ~= objs.LastDistance or objs.PropertyString ~= objs.LastPropertyString then
+								objs.LastDistance = dist
+								objs.LastPropertyString = objs.PropertyString
+								
+								if dist ~= -1 then
+									label.Text = inst.Name .. " [" .. dist .. "m]" .. (objs.PropertyString or "")
+								else
+									label.Text = inst.Name .. (objs.PropertyString or "")
+								end
 							end
 						end
 					elseif label.Text ~= inst.Name then
