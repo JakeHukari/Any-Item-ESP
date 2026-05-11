@@ -158,9 +158,9 @@ local GAME_TEMPLATES = {
 		{Path = "Citizens", Color = Color3.fromRGB(255, 255, 255)},
 		{Path = "Police", Color = Color3.fromRGB(0, 114, 255), TrackedProperties = {RNGGroup = true, Variant = true}},
 	},
-	["863266079"] = { -- AR2
-		{Path = "Zombies", Color = Color3.fromRGB(0, 191, 108)}, 
-		{Path = "Vehicles", Color = Color3.fromRGB(255, 255, 255)}
+	["93911318070665"] = { -- AR2
+		{Path = "Vehicles", Color = Color3.fromRGB(255, 255, 255)},
+		{Path = "Zombies", Color = Color3.fromRGB(255, 192, 203)}
 	}
 	-- Add more game templates here
 }
