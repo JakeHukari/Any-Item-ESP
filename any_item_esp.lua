@@ -1237,8 +1237,12 @@ addConnection(minButton.MouseButton1Click:Connect(toggleMinimize))
 -- Keyboard Shortcut
 addConnection(UserInputService.InputBegan:Connect(function(input, processed)
 	if UserInputService:GetFocusedTextBox() then return end
-	if input.KeyCode == Enum.KeyCode.Backspace and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-		toggleMinimize()
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+		if input.KeyCode == Enum.KeyCode.Backspace then
+			toggleMinimize()
+		elseif input.KeyCode == Enum.KeyCode.U then
+			UnloadScript(screenGui)
+		end
 	end
 end))
 
