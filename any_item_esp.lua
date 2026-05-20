@@ -116,6 +116,10 @@ local GAME_TEMPLATES = {
 		{Path = "Map.KeyCard", Color = Color3.fromRGB(255, 165, 0), Rainbow = true},
 		{Path = "Cameras", Color = Color3.fromRGB(255, 0, 0)}
 	},
+	["86300559848070"] = { -- NTRTY - DPOT
+		{Path = "Map.Keys", Color = Color3.fromRGB(255, 255, 255), Rainbow = true},
+		{Path = "Police", Color = Color3.fromRGB(0, 255, 255), TrackedProperties = {Appearance = true}}
+	},
 	["1242009557"] = { -- NTRTY - BRCK_BNK
 		{Path = "Citizens", Color = Color3.fromRGB(255, 192, 203)},
 		{Path = "Police", Color = Color3.fromRGB(0, 114, 255), TrackedProperties = {RNGGroup = true, Variant = true}},
