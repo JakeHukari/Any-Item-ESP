@@ -90,7 +90,9 @@ local SETTINGS = {
 	MaxTotalObjects = 1000,
 	MaxWatchedFolders = 100,
 	VerticalOffset = 2,
-	MaxDistance = 2500
+	MaxDistance = 2500,
+	MenuOpacity = 1.0,
+	EspOpacity = 1.0
 }
 
 -- Game-Specific Templates
@@ -639,6 +641,32 @@ selectionSettingsFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 selectionSettingsFrame.Visible = false
 selectionSettingsFrame.ZIndex = 6
 selectionSettingsFrame.Parent = mainFrame
+
+local function updateMenuOpacity()
+	local opacity = SETTINGS.MenuOpacity
+	local trans = 1 - opacity
+	
+	mainFrame.BackgroundTransparency = trans
+	header.BackgroundTransparency = trans
+	tabBar.BackgroundTransparency = trans
+	statusBar.BackgroundTransparency = trans
+	settingsFrame.BackgroundTransparency = trans
+	selectionSettingsFrame.BackgroundTransparency = trans
+	
+	-- Update mainFrame stroke
+	local mainStroke = mainFrame:FindFirstChildWhichIsA("UIStroke")
+	if mainStroke then
+		mainStroke.Transparency = trans
+	end
+	
+	-- Update settings rows background transparency
+	for _, child in ipairs(settingsFrame:GetChildren()) do
+		if child:IsA("Frame") then
+			child.BackgroundTransparency = trans * 0.5 -- Keep rows slightly darker/visible
+		end
+	end
+end
+updateMenuOpacity()
 
 local selTitle = Instance.new("TextLabel")
 selTitle.Size = UDim2.new(1, -30, 0, 25)
@@ -1192,6 +1220,111 @@ addConnection(dSliderBtn.MouseButton1Down:Connect(function()
 	activeDrag = { component = "MaxDistance", updateFn = updateMaxDistanceSlider }
 end))
 
+-- 6. Menu Opacity Slider
+local menuOpacityRow = createSettingRow("Menu Opacity", 6)
+local moValLabel = Instance.new("TextLabel")
+moValLabel.Name = "ValueLabel"
+moValLabel.Size = UDim2.new(0, 30, 1, 0)
+moValLabel.Position = UDim2.new(1, -35, 0, 0)
+moValLabel.BackgroundTransparency = 1
+moValLabel.Text = math.floor(SETTINGS.MenuOpacity * 100) .. "%"
+moValLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+moValLabel.TextXAlignment = Enum.TextXAlignment.Right
+moValLabel.Font = FONT
+moValLabel.TextSize = 12
+moValLabel.Parent = menuOpacityRow
+
+local moSliderBg = Instance.new("Frame")
+moSliderBg.Name = "SliderBg"
+moSliderBg.Size = UDim2.new(0, 80, 0, 6)
+moSliderBg.Position = UDim2.new(1, -125, 0.5, -3)
+moSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+moSliderBg.BorderSizePixel = 0
+moSliderBg.Parent = menuOpacityRow
+
+local moSliderFill = Instance.new("Frame")
+moSliderFill.Name = "SliderFill"
+moSliderFill.Size = UDim2.fromScale(SETTINGS.MenuOpacity, 1)
+moSliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
+moSliderFill.BorderSizePixel = 0
+moSliderFill.Parent = moSliderBg
+
+local moSliderBtn = Instance.new("TextButton")
+moSliderBtn.Name = "SliderBtn"
+moSliderBtn.Size = UDim2.new(1, 0, 1, 10)
+moSliderBtn.Position = UDim2.new(0, 0, 0, -5)
+moSliderBtn.BackgroundTransparency = 1
+moSliderBtn.Text = ""
+moSliderBtn.Parent = moSliderBg
+
+local function updateMenuOpacitySlider(mouseX)
+	local rel = (mouseX - moSliderBg.AbsolutePosition.X) / moSliderBg.AbsoluteSize.X
+	local percent = math.clamp(rel, 0.1, 1) -- Minimum 10% opacity
+
+	SETTINGS.MenuOpacity = percent
+	moSliderFill.Size = UDim2.fromScale(percent, 1)
+	moValLabel.Text = math.floor(percent * 100) .. "%"
+	updateMenuOpacity()
+end
+
+addConnection(moSliderBtn.MouseButton1Down:Connect(function()
+	local mouse = PLAYER:GetMouse()
+	updateMenuOpacitySlider(mouse.X)
+	activeDrag = { component = "MenuOpacity", updateFn = updateMenuOpacitySlider }
+end))
+
+-- 7. ESP Opacity Slider
+local espOpacityRow = createSettingRow("ESP Opacity", 7)
+local eoValLabel = Instance.new("TextLabel")
+eoValLabel.Name = "ValueLabel"
+eoValLabel.Size = UDim2.new(0, 30, 1, 0)
+eoValLabel.Position = UDim2.new(1, -35, 0, 0)
+eoValLabel.BackgroundTransparency = 1
+eoValLabel.Text = math.floor(SETTINGS.EspOpacity * 100) .. "%"
+eoValLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+eoValLabel.TextXAlignment = Enum.TextXAlignment.Right
+eoValLabel.Font = FONT
+eoValLabel.TextSize = 12
+eoValLabel.Parent = espOpacityRow
+
+local eoSliderBg = Instance.new("Frame")
+eoSliderBg.Name = "SliderBg"
+eoSliderBg.Size = UDim2.new(0, 80, 0, 6)
+eoSliderBg.Position = UDim2.new(1, -125, 0.5, -3)
+eoSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+eoSliderBg.BorderSizePixel = 0
+eoSliderBg.Parent = espOpacityRow
+
+local eoSliderFill = Instance.new("Frame")
+eoSliderFill.Name = "SliderFill"
+eoSliderFill.Size = UDim2.fromScale(SETTINGS.EspOpacity, 1)
+eoSliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
+eoSliderFill.BorderSizePixel = 0
+eoSliderFill.Parent = eoSliderBg
+
+local eoSliderBtn = Instance.new("TextButton")
+eoSliderBtn.Name = "SliderBtn"
+eoSliderBtn.Size = UDim2.new(1, 0, 1, 10)
+eoSliderBtn.Position = UDim2.new(0, 0, 0, -5)
+eoSliderBtn.BackgroundTransparency = 1
+eoSliderBtn.Text = ""
+eoSliderBtn.Parent = eoSliderBg
+
+local function updateEspOpacitySlider(mouseX)
+	local rel = (mouseX - eoSliderBg.AbsolutePosition.X) / eoSliderBg.AbsoluteSize.X
+	local percent = math.clamp(rel, 0, 1)
+
+	SETTINGS.EspOpacity = percent
+	eoSliderFill.Size = UDim2.fromScale(percent, 1)
+	eoValLabel.Text = math.floor(percent * 100) .. "%"
+end
+
+addConnection(eoSliderBtn.MouseButton1Down:Connect(function()
+	local mouse = PLAYER:GetMouse()
+	updateEspOpacitySlider(mouse.X)
+	activeDrag = { component = "EspOpacity", updateFn = updateEspOpacitySlider }
+end))
+
 
 -- Navigation Logic
 local refreshActiveList, refreshTree
@@ -1497,6 +1630,11 @@ local function createEsp(instance, source)
 			tl.TextColor3 = color
 		end
 		tl.Visible = SETTINGS.ShowNames
+		
+		-- Apply default EspOpacity
+		local targetTrans = 1 - SETTINGS.EspOpacity
+		tl.TextTransparency = targetTrans
+		tl.TextStrokeTransparency = 0.5 + 0.5 * targetTrans
 		
 		-- Attach to rootPart
 		bg.Parent = rootPart
@@ -2316,6 +2454,16 @@ task.spawn(function()
 				
 				if label.TextColor3 ~= color then label.TextColor3 = color end
 				if label.Visible ~= showNames then label.Visible = showNames end
+				
+				-- Dynamic ESP Opacity support
+				local targetTrans = 1 - SETTINGS.EspOpacity
+				if label.TextTransparency ~= targetTrans then
+					label.TextTransparency = targetTrans
+				end
+				local targetStrokeTrans = 0.5 + 0.5 * targetTrans
+				if label.TextStrokeTransparency ~= targetStrokeTrans then
+					label.TextStrokeTransparency = targetStrokeTrans
+				end
 				
 				if showNames then
 					if shouldUpdateStrings then
