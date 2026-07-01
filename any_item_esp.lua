@@ -186,6 +186,9 @@ local currentTab = "Explorer" -- "Explorer", "Active", "Settings"
 local isRendering = false
 local renderRequest = 0
 local searchDebounceToken = 0
+local isMinimized = false
+local wasSelectionSettingsOpen = false
+local toggleMinimize -- Forward declared
 
 -- UI State & Pools (Forward Declared for UnloadScript)
 local rowPool = {}
@@ -339,7 +342,7 @@ end
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.fromScale(0.1771, 0.4444)
+mainFrame.Size = UDim2.new(0, 340, 0, 480) -- Fixed pixel size
 mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 mainFrame.Position = UDim2.fromScale(0.5, 0.5)
 mainFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
@@ -353,14 +356,14 @@ addStroke(mainFrame, Color3.fromRGB(50, 50, 55), 2)
 -- Header
 local header = Instance.new("Frame")
 header.Name = "Header"
-header.Size = UDim2.fromScale(1, 0.0667)
+header.Size = UDim2.new(1, 0, 0, 32) -- Fixed height
 header.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
 header.BorderSizePixel = 0
 header.Parent = mainFrame
 
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "Title"
-titleLabel.Size = UDim2.fromScale(0.7941, 1)
+titleLabel.Size = UDim2.new(1, -60, 1, 0) -- Subtract button space
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "  👁️ Any-Item-ESP"
 titleLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
@@ -369,12 +372,11 @@ titleLabel.Font = FONT_BOLD
 titleLabel.TextSize = 15
 titleLabel.Parent = header
 
--- Header Buttons
+-- Header Buttons (Square 22x22, offset aligned)
 local minButton = Instance.new("TextButton")
 minButton.Name = "Minimize"
-minButton.Size = UDim2.fromScale(0.0824, 0.6875)
-minButton.AnchorPoint = Vector2.new(1, 0)
-minButton.Position = UDim2.fromScale(0.98, 0.1563)
+minButton.Size = UDim2.new(0, 22, 0, 22)
+minButton.Position = UDim2.new(1, -27, 0.5, -11)
 minButton.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
 minButton.BorderSizePixel = 0
 minButton.Text = "−"
@@ -386,9 +388,8 @@ addCorners(minButton, 4)
 
 local settingsButton = Instance.new("TextButton")
 settingsButton.Name = "Settings"
-settingsButton.Size = UDim2.fromScale(0.0824, 0.6875)
-settingsButton.AnchorPoint = Vector2.new(1, 0)
-settingsButton.Position = UDim2.fromScale(0.88, 0.1563)
+settingsButton.Size = UDim2.new(0, 22, 0, 22)
+settingsButton.Position = UDim2.new(1, -54, 0.5, -11)
 settingsButton.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
 settingsButton.BorderSizePixel = 0
 settingsButton.Text = ICONS.Settings
@@ -401,8 +402,8 @@ addCorners(settingsButton, 4)
 -- Tab Bar
 local tabBar = Instance.new("Frame")
 tabBar.Name = "TabBar"
-tabBar.Size = UDim2.fromScale(1, 0.0583)
-tabBar.Position = UDim2.fromScale(0, 0.0667)
+tabBar.Size = UDim2.new(1, 0, 0, 28) -- Fixed height
+tabBar.Position = UDim2.new(0, 0, 0, 32)
 tabBar.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
 tabBar.BorderSizePixel = 0
 tabBar.Parent = mainFrame
@@ -410,8 +411,8 @@ tabBar.Parent = mainFrame
 local function createTabBtn(name, order)
 	local btn = Instance.new("TextButton")
 	btn.Name = name
-	btn.Size = UDim2.fromScale(0.48, 0.7857)
-	btn.Position = UDim2.fromScale((order - 1) * 0.5 + 0.01, 0.1071)
+	btn.Size = UDim2.new(0.48, 0, 0.8, 0)
+	btn.Position = UDim2.new((order - 1) * 0.5 + 0.01, 0, 0.1, 0)
 	btn.BackgroundColor3 = order == 1 and Color3.fromRGB(60, 130, 180) or Color3.fromRGB(50, 50, 58)
 	btn.BorderSizePixel = 0
 	btn.Text = name
@@ -429,8 +430,8 @@ local tabActive = createTabBtn("Active", 2)
 -- Status Bar (bottom)
 local statusBar = Instance.new("Frame")
 statusBar.Name = "StatusBar"
-statusBar.Size = UDim2.fromScale(1, 0.0458)
-statusBar.Position = UDim2.fromScale(0, 0.9542)
+statusBar.Size = UDim2.new(1, 0, 0, 22) -- Fixed height
+statusBar.Position = UDim2.new(0, 0, 1, -22)
 statusBar.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
 statusBar.BorderSizePixel = 0
 statusBar.Parent = mainFrame
@@ -561,16 +562,16 @@ end
 -- Content Area
 local contentArea = Instance.new("Frame")
 contentArea.Name = "ContentArea"
-contentArea.Size = UDim2.fromScale(1, 0.8292) -- Header(32) + TabBar(28) + StatusBar(22) = 82
-contentArea.Position = UDim2.fromScale(0, 0.125)
+contentArea.Size = UDim2.new(1, 0, 1, -82) -- 480 - 32 (header) - 28 (tabBar) - 22 (statusBar) = 398
+contentArea.Position = UDim2.new(0, 0, 0, 60)
 contentArea.BackgroundTransparency = 1
 contentArea.Parent = mainFrame
 
 -- Explorer
 local searchBox = Instance.new("TextBox")
 searchBox.Name = "Search"
-searchBox.Size = UDim2.fromScale(0.95, 0.0653)
-searchBox.Position = UDim2.fromScale(0.025, 0.015)
+searchBox.Size = UDim2.new(1, -20, 0, 26)
+searchBox.Position = UDim2.new(0, 10, 0, 6)
 searchBox.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
 searchBox.BorderSizePixel = 0
 searchBox.TextColor3 = Color3.fromRGB(220, 220, 225)
@@ -587,19 +588,18 @@ addStroke(searchBox, Color3.fromRGB(55, 55, 65), 1)
 
 local explorerScroll = Instance.new("ScrollingFrame")
 explorerScroll.Name = "ExplorerList"
-explorerScroll.Size = UDim2.fromScale(0.976, 0.89)
-explorerScroll.Position = UDim2.fromScale(0.012, 0.09)
+explorerScroll.Size = UDim2.new(1, -10, 1, -38)
+explorerScroll.Position = UDim2.new(0, 5, 0, 38)
 explorerScroll.BackgroundTransparency = 1
 explorerScroll.ScrollBarThickness = 5
 explorerScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
 explorerScroll.Parent = contentArea
 
-
 -- Active List
 local exportBtn = Instance.new("TextButton")
 exportBtn.Name = "ExportBtn"
-exportBtn.Size = UDim2.fromScale(0.95, 0.0653)
-exportBtn.Position = UDim2.fromScale(0.025, 0.015)
+exportBtn.Size = UDim2.new(1, -20, 0, 26)
+exportBtn.Position = UDim2.new(0, 10, 0, 6)
 exportBtn.BackgroundColor3 = Color3.fromRGB(60, 130, 180)
 exportBtn.BorderSizePixel = 0
 exportBtn.Text = "📤 Export Game-Specific Template"
@@ -612,8 +612,8 @@ addCorners(exportBtn, 4)
 
 local activeScroll = Instance.new("ScrollingFrame")
 activeScroll.Name = "ActiveList"
-activeScroll.Size = UDim2.fromScale(0.976, 0.89)
-activeScroll.Position = UDim2.fromScale(0.012, 0.09)
+activeScroll.Size = UDim2.new(1, -10, 1, -38)
+activeScroll.Position = UDim2.new(0, 5, 0, 38)
 activeScroll.BackgroundTransparency = 1
 activeScroll.ScrollBarThickness = 5
 activeScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 130, 180)
@@ -623,8 +623,8 @@ activeScroll.Parent = contentArea
 -- Settings Frame
 local settingsFrame = Instance.new("Frame")
 settingsFrame.Name = "SettingsFrame"
-settingsFrame.Size = UDim2.fromScale(1, 0.9479) -- Below header
-settingsFrame.Position = UDim2.fromScale(0, 0.0521)
+settingsFrame.Size = UDim2.new(1, 0, 1, -32) -- Fill below header
+settingsFrame.Position = UDim2.new(0, 0, 0, 32)
 settingsFrame.BackgroundColor3 = Color3.fromRGB(37, 37, 37)
 settingsFrame.Visible = false
 settingsFrame.ZIndex = 5 -- On top of everything
@@ -633,8 +633,8 @@ settingsFrame.Parent = mainFrame
 -- Selection Settings UI
 local selectionSettingsFrame = Instance.new("Frame")
 selectionSettingsFrame.Name = "SelectionSettings"
-selectionSettingsFrame.Size = UDim2.fromScale(1, 0.9479)
-selectionSettingsFrame.Position = UDim2.fromScale(0, 0.0521)
+selectionSettingsFrame.Size = UDim2.new(1, 0, 1, -32)
+selectionSettingsFrame.Position = UDim2.new(0, 0, 0, 32)
 selectionSettingsFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 selectionSettingsFrame.Visible = false
 selectionSettingsFrame.ZIndex = 6
@@ -985,6 +985,7 @@ local function createSettingRow(text, order)
 	row.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 	row.BorderSizePixel = 0
 	row.Parent = settingsFrame
+	addCorners(row, 4) -- Rounded corners for settings rows
 	
 	local lbl = Instance.new("TextLabel")
 	lbl.Size = UDim2.new(0.6, 0, 1, 0)
@@ -1030,11 +1031,24 @@ end))
 
 -- 3. Max Highlights
 local maxHighlightsRow = createSettingRow("Max Highlights", 3)
--- Slider Logic
+-- Value Label (aligned inside right edge)
+local valLabel = Instance.new("TextLabel")
+valLabel.Name = "ValueLabel"
+valLabel.Size = UDim2.new(0, 30, 1, 0)
+valLabel.Position = UDim2.new(1, -35, 0, 0)
+valLabel.BackgroundTransparency = 1
+valLabel.Text = tostring(SETTINGS.MaxHighlights)
+valLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+valLabel.TextXAlignment = Enum.TextXAlignment.Right
+valLabel.Font = FONT
+valLabel.TextSize = 12
+valLabel.Parent = maxHighlightsRow
+
+-- Slider Logic (positioned to the left of the value label)
 local sliderBg = Instance.new("Frame")
 sliderBg.Name = "SliderBg"
 sliderBg.Size = UDim2.new(0, 80, 0, 6)
-sliderBg.Position = UDim2.new(1, -95, 0.5, -3) -- Left a bit for text
+sliderBg.Position = UDim2.new(1, -125, 0.5, -3)
 sliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 sliderBg.BorderSizePixel = 0
 sliderBg.Parent = maxHighlightsRow
@@ -1045,17 +1059,6 @@ sliderFill.Size = UDim2.fromScale(SETTINGS.MaxHighlights / 300, 1)
 sliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
 sliderFill.BorderSizePixel = 0
 sliderFill.Parent = sliderBg
-
-local valLabel = Instance.new("TextLabel")
-valLabel.Name = "ValueLabel"
-valLabel.Size = UDim2.new(0, 30, 1, 0)
-valLabel.Position = UDim2.new(1, 5, 0.5, -10) -- To right of slider
-valLabel.BackgroundTransparency = 1
-valLabel.Text = tostring(SETTINGS.MaxHighlights)
-valLabel.TextColor3 = Color3.new(1, 1, 1)
-valLabel.Font = FONT
-valLabel.TextSize = 12
-valLabel.Parent = sliderBg
 
 local sliderBtn = Instance.new("TextButton")
 sliderBtn.Name = "SliderBtn"
@@ -1083,10 +1086,23 @@ end))
 
 -- 4. Vertical Offset
 local verticalOffsetRow = createSettingRow("Vertical Offset", 4)
+-- Value Label
+local vValLabel = Instance.new("TextLabel")
+vValLabel.Name = "ValueLabel"
+vValLabel.Size = UDim2.new(0, 30, 1, 0)
+vValLabel.Position = UDim2.new(1, -35, 0, 0)
+vValLabel.BackgroundTransparency = 1
+vValLabel.Text = string.format("%.1f", SETTINGS.VerticalOffset)
+vValLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+vValLabel.TextXAlignment = Enum.TextXAlignment.Right
+vValLabel.Font = FONT
+vValLabel.TextSize = 12
+vValLabel.Parent = verticalOffsetRow
+
 local vSliderBg = Instance.new("Frame")
 vSliderBg.Name = "SliderBg"
 vSliderBg.Size = UDim2.new(0, 80, 0, 6)
-vSliderBg.Position = UDim2.new(1, -95, 0.5, -3)
+vSliderBg.Position = UDim2.new(1, -125, 0.5, -3)
 vSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 vSliderBg.BorderSizePixel = 0
 vSliderBg.Parent = verticalOffsetRow
@@ -1097,17 +1113,6 @@ vSliderFill.Size = UDim2.fromScale(SETTINGS.VerticalOffset / 10, 1)
 vSliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
 vSliderFill.BorderSizePixel = 0
 vSliderFill.Parent = vSliderBg
-
-local vValLabel = Instance.new("TextLabel")
-vValLabel.Name = "ValueLabel"
-vValLabel.Size = UDim2.new(0, 30, 1, 0)
-vValLabel.Position = UDim2.new(1, 5, 0.5, -10)
-vValLabel.BackgroundTransparency = 1
-vValLabel.Text = string.format("%.1f", SETTINGS.VerticalOffset)
-vValLabel.TextColor3 = Color3.new(1, 1, 1)
-vValLabel.Font = FONT
-vValLabel.TextSize = 12
-vValLabel.Parent = vSliderBg
 
 local vSliderBtn = Instance.new("TextButton")
 vSliderBtn.Name = "SliderBtn"
@@ -1135,10 +1140,23 @@ end))
 
 -- 5. Max Distance Slider
 local maxDistanceRow = createSettingRow("Max Distance", 5)
+-- Value Label
+local dValLabel = Instance.new("TextLabel")
+dValLabel.Name = "ValueLabel"
+dValLabel.Size = UDim2.new(0, 30, 1, 0)
+dValLabel.Position = UDim2.new(1, -35, 0, 0)
+dValLabel.BackgroundTransparency = 1
+dValLabel.Text = tostring(SETTINGS.MaxDistance)
+dValLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+dValLabel.TextXAlignment = Enum.TextXAlignment.Right
+dValLabel.Font = FONT
+dValLabel.TextSize = 12
+dValLabel.Parent = maxDistanceRow
+
 local dSliderBg = Instance.new("Frame")
 dSliderBg.Name = "SliderBg"
 dSliderBg.Size = UDim2.new(0, 80, 0, 6)
-dSliderBg.Position = UDim2.new(1, -95, 0.5, -3)
+dSliderBg.Position = UDim2.new(1, -125, 0.5, -3)
 dSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 dSliderBg.BorderSizePixel = 0
 dSliderBg.Parent = maxDistanceRow
@@ -1149,17 +1167,6 @@ dSliderFill.Size = UDim2.fromScale(SETTINGS.MaxDistance / 5000, 1)
 dSliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
 dSliderFill.BorderSizePixel = 0
 dSliderFill.Parent = dSliderBg
-
-local dValLabel = Instance.new("TextLabel")
-dValLabel.Name = "ValueLabel"
-dValLabel.Size = UDim2.new(0, 30, 1, 0)
-dValLabel.Position = UDim2.new(1, 5, 0.5, -10)
-dValLabel.BackgroundTransparency = 1
-dValLabel.Text = tostring(SETTINGS.MaxDistance)
-dValLabel.TextColor3 = Color3.new(1, 1, 1)
-dValLabel.Font = FONT
-dValLabel.TextSize = 12
-dValLabel.Parent = dSliderBg
 
 local dSliderBtn = Instance.new("TextButton")
 dSliderBtn.Name = "SliderBtn"
@@ -1215,6 +1222,19 @@ local function switchTab(tab)
 end
 
 addConnection(settingsButton.MouseButton1Click:Connect(function()
+	if isMinimized then
+		toggleMinimize()
+		currentTab = "Settings"
+		settingsFrame.Visible = true
+		explorerScroll.Visible = false
+		searchBox.Visible = false
+		activeScroll.Visible = false
+		selectionSettingsFrame.Visible = false
+		tabExplorer.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
+		tabActive.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
+		return
+	end
+
 	if currentTab == "Settings" then
 		switchTab("Explorer") -- Toggle Back
 	else
@@ -1230,9 +1250,6 @@ addConnection(settingsButton.MouseButton1Click:Connect(function()
 end))
 addConnection(tabExplorer.MouseButton1Click:Connect(function() switchTab("Explorer") end))
 addConnection(tabActive.MouseButton1Click:Connect(function() switchTab("Active") end))
-
-local isMinimized = false
-local wasSelectionSettingsOpen = false
 
 local function ensureWithinBounds()
 	local viewportSize = camera.ViewportSize
@@ -1258,7 +1275,7 @@ local function ensureWithinBounds()
 	end
 end
 
-local function toggleMinimize()
+toggleMinimize = function()
 	if not ALIVE then return end
 	isMinimized = not isMinimized
 	tabBar.Visible = not isMinimized
@@ -1275,15 +1292,13 @@ local function toggleMinimize()
 		settingsFrame.Visible = false
 		
 		mainFrame.AnchorPoint = Vector2.new(1, 0)
-		mainFrame.Size = UDim2.fromScale(0.11, 0.0296) -- Smaller width to remove filler
+		mainFrame.Size = UDim2.new(0, 210, 0, 32) -- Fixed minimized size
 		mainFrame.Position = UDim2.fromScale(0.913, 0.025)
-		header.Size = UDim2.fromScale(1, 1) -- Ensure header fills frame in minimized state
 		minButton.Text = "+"
 	else
 		mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-		mainFrame.Size = UDim2.fromScale(0.1771, 0.4444)
+		mainFrame.Size = UDim2.new(0, 340, 0, 480) -- Restore fixed size
 		mainFrame.Position = UDim2.fromScale(0.5, 0.5)
-		header.Size = UDim2.fromScale(1, 0.0667) -- Restore header size
 		minButton.Text = "−"
 		if currentTab == "Settings" then 
 			settingsFrame.Visible = true 
