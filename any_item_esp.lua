@@ -1,6 +1,5 @@
 --ANY_ITEM_ESP
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local camera = Workspace.CurrentCamera
 local TeleportService = game:GetService("TeleportService")
@@ -87,11 +86,11 @@ end
 -- Settings Defaults
 local SETTINGS = {
 	MaxHighlights = 100,
-	-- RainbowMode = true, -- REMOVED GLOBAL
 	ShowNames = true,
 	MaxTotalObjects = 1000,
 	MaxWatchedFolders = 100,
-	VerticalOffset = 2
+	VerticalOffset = 2,
+	MaxDistance = 2500
 }
 
 -- Game-Specific Templates
@@ -180,9 +179,8 @@ local watchedFolders = setmetatable({}, {__mode = "k"}) -- { [Instance] = { Chil
 local watchedFolderCount = 0
 local espObjects = {} -- { [Instance] = {GUI, Highlight, Source, Root, Janitor, PropertyString, LastDistance, LastColor} }
 local espObjectCount = 0
-local activeHighlights = {} -- List of instances with active Highlights
-local activeHighlightsSet = setmetatable({}, {__mode = "k"}) -- { [Instance] = true } for O(1) lookup
 local highlightPool = {}
+local billboardPool = {} -- Pool for caching and reusing BillboardGuis
 local searchText = ""
 local currentTab = "Explorer" -- "Explorer", "Active", "Settings"
 local isRendering = false
@@ -248,8 +246,11 @@ local function UnloadScript(screenGui)
 	ALIVE = false
 	if screenGui then screenGui:Destroy() end
 	
-	-- Cleanup ESPs via their Janitors
+	-- Cleanup ESPs via their Janitors, and destroy active Highlights
 	for inst, objs in pairs(espObjects) do
+		if objs.Highlight then
+			objs.Highlight:Destroy()
+		end
 		if objs.Janitor then
 			objs.Janitor:Cleanup()
 		end
@@ -277,8 +278,6 @@ local function UnloadScript(screenGui)
 	-- Explicit Table Clearing to assist GC
 	table.clear(connections)
 	table.clear(espObjects)
-	table.clear(activeHighlights)
-	table.clear(activeHighlightsSet)
 	table.clear(watchedFolders)
 	table.clear(espTargets)
 	table.clear(targetSettings)
@@ -289,8 +288,15 @@ local function UnloadScript(screenGui)
 	for _, row in ipairs(rowPool) do row:Destroy() end
 	table.clear(rowPool)
 	table.clear(nodePool)
+	
+	-- Clean up Highlight Pool
 	for _, hl in ipairs(highlightPool) do hl:Destroy() end
 	table.clear(highlightPool)
+	
+	-- Clean up Billboard Pool
+	for _, bg in ipairs(billboardPool) do bg:Destroy() end
+	table.clear(billboardPool)
+	
 	table.clear(currentFlatList)
 	table.clear(activeFlatList)
 	table.clear(activeRows)
@@ -540,7 +546,13 @@ local function exportTemplate()
 end
 
 local function updateStatusBar()
-	local highlightsCount = #activeHighlights
+	local highlightsCount = 0
+	for _, objs in pairs(espObjects) do
+		if objs.Highlight then
+			highlightsCount = highlightsCount + 1
+		end
+	end
+	
 	local statusText = string.format("ESP: %d | Highlights: %d/%d | Watching: %d folders", 
 		espObjectCount, highlightsCount, SETTINGS.MaxHighlights, watchedFolderCount)
 	if statusLabel.Text ~= statusText then statusLabel.Text = statusText end
@@ -1121,8 +1133,57 @@ addConnection(vSliderBtn.MouseButton1Down:Connect(function()
 	activeDrag = { component = "VerticalOffset", updateFn = updateVerticalOffsetSlider }
 end))
 
--- 5. Rainbow Mode (REMOVED GLOBAL)
--- Kept empty or replaced/removed
+-- 5. Max Distance Slider
+local maxDistanceRow = createSettingRow("Max Distance", 5)
+local dSliderBg = Instance.new("Frame")
+dSliderBg.Name = "SliderBg"
+dSliderBg.Size = UDim2.new(0, 80, 0, 6)
+dSliderBg.Position = UDim2.new(1, -95, 0.5, -3)
+dSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+dSliderBg.BorderSizePixel = 0
+dSliderBg.Parent = maxDistanceRow
+
+local dSliderFill = Instance.new("Frame")
+dSliderFill.Name = "SliderFill"
+dSliderFill.Size = UDim2.fromScale(SETTINGS.MaxDistance / 5000, 1)
+dSliderFill.BackgroundColor3 = Color3.fromRGB(50, 150, 200)
+dSliderFill.BorderSizePixel = 0
+dSliderFill.Parent = dSliderBg
+
+local dValLabel = Instance.new("TextLabel")
+dValLabel.Name = "ValueLabel"
+dValLabel.Size = UDim2.new(0, 30, 1, 0)
+dValLabel.Position = UDim2.new(1, 5, 0.5, -10)
+dValLabel.BackgroundTransparency = 1
+dValLabel.Text = tostring(SETTINGS.MaxDistance)
+dValLabel.TextColor3 = Color3.new(1, 1, 1)
+dValLabel.Font = FONT
+dValLabel.TextSize = 12
+dValLabel.Parent = dSliderBg
+
+local dSliderBtn = Instance.new("TextButton")
+dSliderBtn.Name = "SliderBtn"
+dSliderBtn.Size = UDim2.new(1, 0, 1, 10)
+dSliderBtn.Position = UDim2.new(0, 0, 0, -5)
+dSliderBtn.BackgroundTransparency = 1
+dSliderBtn.Text = ""
+dSliderBtn.Parent = dSliderBg
+
+local function updateMaxDistanceSlider(mouseX)
+	local rel = (mouseX - dSliderBg.AbsolutePosition.X) / dSliderBg.AbsoluteSize.X
+	local percent = math.clamp(rel, 0, 1)
+	local val = math.floor(percent * 49 + 1) * 100 -- 100 to 5000 studs
+
+	SETTINGS.MaxDistance = val
+	dSliderFill.Size = UDim2.fromScale(percent, 1)
+	dValLabel.Text = tostring(val)
+end
+
+addConnection(dSliderBtn.MouseButton1Down:Connect(function()
+	local mouse = PLAYER:GetMouse()
+	updateMaxDistanceSlider(mouse.X)
+	activeDrag = { component = "MaxDistance", updateFn = updateMaxDistanceSlider }
+end))
 
 
 -- Navigation Logic
@@ -1299,13 +1360,15 @@ local function removeEsp(instance)
 			objs.Janitor:Cleanup()
 		end
 		
-		if activeHighlightsSet[instance] then
-			local idx = table.find(activeHighlights, instance)
-			if idx then
-				table.remove(activeHighlights, idx)
-			end
-			activeHighlightsSet[instance] = nil
+		-- Return Highlight to pool if active
+		if objs.Highlight then
+			local hl = objs.Highlight
+			hl.Enabled = false
+			hl.Adornee = nil
+			table.insert(highlightPool, hl)
+			objs.Highlight = nil
 		end
+		
 		espObjects[instance] = nil
 		espObjectCount = math.max(0, espObjectCount - 1)
 	end
@@ -1385,73 +1448,57 @@ local function createEsp(instance, source)
 	if rootPart then
 		local janitor = Janitor.new()
 		
-		local bg = Instance.new("BillboardGui")
-		bg.Size = UDim2.new(0, 150, 0, 60)
-		bg.AlwaysOnTop = true
-		bg.Name = "ESPTag"
-		bg.Adornee = instance
+		-- Pool-based BillboardGui allocation
+		local bg = table.remove(billboardPool)
+		local tl
+		if bg then
+			tl = bg:FindFirstChildWhichIsA("TextLabel")
+			bg.Enabled = true
+		else
+			bg = Instance.new("BillboardGui")
+			bg.Size = UDim2.new(0, 150, 0, 60)
+			bg.AlwaysOnTop = true
+			bg.Name = "ESPTag"
+			bg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			
+			tl = Instance.new("TextLabel")
+			tl.Size = UDim2.fromScale(1, 1)
+			tl.BackgroundTransparency = 1
+			tl.Font = FONT_BOLD
+			tl.TextSize = 14
+			tl.TextStrokeTransparency = 0.5
+			tl.Parent = bg
+		end
+		
+		bg.Adornee = rootPart
 		bg.ExtentsOffset = Vector3.new(0, 1, 0)
 		bg.StudsOffset = Vector3.new(0, SETTINGS.VerticalOffset, 0)
-		janitor:Add(bg)
 		
 		local s = targetSettings[source]
 		local color = s and s.Color or Color3.new(1, 0, 0)
 		
-		local tl = Instance.new("TextLabel")
-		tl.Size = UDim2.fromScale(1, 1)
-		tl.BackgroundTransparency = 1
 		tl.Text = instance.Name
-		tl.Font = FONT_BOLD
-		tl.TextSize = 14
-		
 		if not (s and s.Rainbow) then
 			tl.TextColor3 = color
 		end
-		
-		tl.TextStrokeTransparency = 0.5
 		tl.Visible = SETTINGS.ShowNames
-		tl.Parent = bg
+		
+		-- Attach to rootPart
 		bg.Parent = rootPart
 		
-		local hl = table.remove(highlightPool)
-		if not hl then
-			hl = Instance.new("Highlight")
-			hl.OutlineColor = Color3.new(1, 1, 1)
-			hl.FillTransparency = 0.6
-			hl.Parent = PLAYER_GUI
-		end
-
-		if #activeHighlights >= SETTINGS.MaxHighlights then
-			-- Recycle oldest
-			local old = table.remove(activeHighlights, 1)
-			if old then
-				activeHighlightsSet[old] = nil
-				local oldObjs = espObjects[old]
-				if oldObjs then
-					oldObjs.Janitor:Remove("Highlight")
-					oldObjs.Highlight = nil
-				end
-			end
-		end
-
-		hl.Adornee = instance
-		hl.FillColor = color
-		hl.Enabled = true
-		
-		-- Use Janitor to return to pool on cleanup
+		-- Return BillboardGui to pool on cleanup
 		janitor:Add(function()
-			hl.Enabled = false
-			hl.Adornee = nil
-			table.insert(highlightPool, hl)
-		end, nil, "Highlight")
+			bg.Enabled = false
+			bg.Adornee = nil
+			bg.Parent = nil
+			table.insert(billboardPool, bg)
+		end, nil, "Billboard")
 
-		table.insert(activeHighlights, instance)
-		activeHighlightsSet[instance] = true
-		
 		local objs = { 
+			Instance = instance,
 			Janitor = janitor, 
 			GUI = bg, 
-			Highlight = hl, 
+			Highlight = nil, -- Handled dynamically in update loop
 			Label = tl, 
 			Source = (source ~= instance) and source or nil, 
 			Root = (rootPart ~= instance) and rootPart or nil,
@@ -1463,7 +1510,7 @@ local function createEsp(instance, source)
 		espObjects[instance] = objs
 		espObjectCount = espObjectCount + 1
 
-		-- OPTIMIZATION: Event-driven property tracking instead of polling
+		-- Event-driven property tracking
 		janitor:Add(instance.AttributeChanged:Connect(function()
 			updateEspPropertyString(instance)
 		end))
@@ -1479,6 +1526,7 @@ local function createEsp(instance, source)
 				updateEspPropertyString(instance)
 			end
 		end))
+		
 		-- Initial scan
 		for _, child in ipairs(instance:GetChildren()) do
 			if child:IsA("ValueBase") then
@@ -1487,7 +1535,7 @@ local function createEsp(instance, source)
 		end
 		updateEspPropertyString(instance)
 
-		-- OPTIMIZATION: Immediate cleanup on destruction
+		-- Immediate cleanup on destruction
 		janitor:Add(instance.Destroying:Connect(function()
 			removeEsp(instance)
 		end))
@@ -1497,6 +1545,18 @@ local function createEsp(instance, source)
 				removeEsp(instance)
 			end
 		end))
+
+		-- Guard against RootPart destruction in Models (crucial memory leak fix)
+		if rootPart ~= instance then
+			janitor:Add(rootPart.Destroying:Connect(function()
+				removeEsp(instance)
+			end))
+			janitor:Add(rootPart.AncestryChanged:Connect(function()
+				if not rootPart:IsDescendantOf(Workspace) then
+					removeEsp(instance)
+				end
+			end))
+		end
 	end
 end
 
@@ -2172,89 +2232,162 @@ addConnection(exportBtn.MouseButton1Click:Connect(function()
 	end)
 end))
 
--- Animation Loop
--- Animation Loop (Optimized)
+-- Animation Loop (Highly Optimized)
 task.spawn(function()
 	local updateCounter = 0
 	local lastDistanceUpdate = 0
+	local targetsToHighlight = {} -- Pre-allocated to prevent loop table churn
+	
 	while ALIVE and screenGui.Parent do
 		local globalHue = (tick() % 5) / 5
 		local rainbowColor = Color3.fromHSV(globalHue, 1, 1)
 		
-		pcall(function()
-			-- Get player position for distance calc
-			local playerPos = nil
-			local char = PLAYER.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			if hrp then playerPos = hrp.Position end
-			
-			local showNames = SETTINGS.ShowNames
-			local verticalOffset = SETTINGS.VerticalOffset
-			local expectedOffset = Vector3.new(0, verticalOffset, 0)
+		-- Resolve player position
+		local playerPos = nil
+		local char = PLAYER.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then playerPos = hrp.Position end
+		
+		local showNames = SETTINGS.ShowNames
+		local verticalOffset = SETTINGS.VerticalOffset
+		local expectedOffset = Vector3.new(0, verticalOffset, 0)
+		local maxDistance = SETTINGS.MaxDistance
 
-			local now = tick()
-			local shouldUpdateStrings = (now - lastDistanceUpdate >= 0.2)
-			if shouldUpdateStrings then
-				lastDistanceUpdate = now
+		local now = tick()
+		local shouldUpdateStrings = (now - lastDistanceUpdate >= 0.2)
+		if shouldUpdateStrings then
+			lastDistanceUpdate = now
+		end
+
+		-- Clear candidate list for this frame
+		table.clear(targetsToHighlight)
+		local targetsToHighlightCount = 0
+
+		-- 1. Distance Calculations & Billboard Updates
+		for inst, objs in pairs(espObjects) do
+			if not inst:IsDescendantOf(Workspace) then
+				continue
 			end
 
-			for inst, objs in pairs(espObjects) do
-				-- Resolve Settings
+			local root = objs.Root or inst
+			local dist = 999999
+			
+			if root and root:IsA("BasePart") then
+				local targetPos = root.Position
+				if playerPos then
+					dist = (playerPos - targetPos).Magnitude
+				end
+			end
+			objs.CurrentDistance = dist
+
+			-- Distance Culling for BillboardGui
+			local gui = objs.GUI
+			if gui then
+				local withinRange = dist <= maxDistance
+				if gui.Enabled ~= withinRange then
+					gui.Enabled = withinRange
+				end
+				if withinRange and gui.StudsOffset ~= expectedOffset then
+					gui.StudsOffset = expectedOffset
+				end
+			end
+
+			-- Text Label Updates
+			local label = objs.Label
+			if label and label.Parent and dist <= maxDistance then
 				local source = objs.Source or inst
 				local s = targetSettings[source]
 				local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
 				
-				local label = objs.Label
-				if label and label.Parent then 
-					if label.TextColor3 ~= color then label.TextColor3 = color end
-					if label.Visible ~= showNames then label.Visible = showNames end
-					
-					-- OPTIMIZATION: Only rebuild text if distance or properties changed
-					if showNames then
-						if shouldUpdateStrings then
-							local dist = -1
-							local root = objs.Root or inst
-							local targetPos = (root and root:IsA("BasePart")) and root.Position or nil
-							
-							if playerPos and targetPos then
-								dist = math.floor((playerPos - targetPos).Magnitude)
-							end
-
-							if dist ~= objs.LastDistance or objs.PropertyString ~= objs.LastPropertyString then
-								objs.LastDistance = dist
-								objs.LastPropertyString = objs.PropertyString
-								
-								if dist ~= -1 then
-									label.Text = inst.Name .. " [" .. dist .. "m]" .. (objs.PropertyString or "")
-								else
-									label.Text = inst.Name .. (objs.PropertyString or "")
-								end
-							end
+				if label.TextColor3 ~= color then label.TextColor3 = color end
+				if label.Visible ~= showNames then label.Visible = showNames end
+				
+				if showNames then
+					if shouldUpdateStrings then
+						if dist ~= objs.LastDistance or objs.PropertyString ~= objs.LastPropertyString then
+							objs.LastDistance = math.floor(dist)
+							objs.LastPropertyString = objs.PropertyString
+							label.Text = inst.Name .. " [" .. objs.LastDistance .. "m]" .. (objs.PropertyString or "")
 						end
-					elseif label.Text ~= inst.Name then
-						label.Text = inst.Name
 					end
+				elseif label.Text ~= inst.Name then
+					label.Text = inst.Name
 				end
+			end
 
+			-- Gather valid Highlight candidates
+			if dist <= maxDistance then
+				targetsToHighlightCount = targetsToHighlightCount + 1
+				targetsToHighlight[targetsToHighlightCount] = objs
+			else
+				-- Release highlight if it is out of range
 				local hl = objs.Highlight
-				if hl and hl.Parent and hl.Adornee then
-					-- OPTIMIZATION: Only update Highlight color if it changed
+				if hl then
+					hl.Enabled = false
+					hl.Adornee = nil
+					table.insert(highlightPool, hl)
+					objs.Highlight = nil
+				end
+			end
+		end
+
+		-- 2. Sort & Allocate Highlights dynamically by proximity
+		if targetsToHighlightCount > 0 then
+			table.sort(targetsToHighlight, function(a, b)
+				return a.CurrentDistance < b.CurrentDistance
+			end)
+
+			local maxHighlights = SETTINGS.MaxHighlights
+			for i = 1, targetsToHighlightCount do
+				local objs = targetsToHighlight[i]
+				local inst = objs.Instance
+				
+				if i <= maxHighlights then
+					-- Assign highlight
+					local hl = objs.Highlight
+					if not hl then
+						hl = table.remove(highlightPool)
+						if not hl then
+							hl = Instance.new("Highlight")
+							hl.OutlineColor = Color3.new(1, 1, 1)
+							hl.FillTransparency = 0.6
+							hl.Parent = PLAYER_GUI
+						end
+						objs.Highlight = hl
+					end
+
+					if hl.Adornee ~= inst then hl.Adornee = inst end
+					if not hl.Enabled then hl.Enabled = true end
+					
+					local source = objs.Source or inst
+					local s = targetSettings[source]
+					local color = (s and s.Rainbow) and rainbowColor or (s and s.Color or Color3.new(1,0,0))
+					
 					if objs.LastColor ~= color then
 						objs.LastColor = color
 						hl.FillColor = color
 						hl.OutlineColor = color
 					end
 					if hl.OutlineTransparency ~= 0.5 then hl.OutlineTransparency = 0.5 end
-				end
-
-				local gui = objs.GUI
-				if gui and gui.Parent then
-					if not gui.Enabled then gui.Enabled = true end
-					if gui.StudsOffset ~= expectedOffset then gui.StudsOffset = expectedOffset end
+				else
+					-- Beyond max highlight count, release it
+					local hl = objs.Highlight
+					if hl then
+						hl.Enabled = false
+						hl.Adornee = nil
+						table.insert(highlightPool, hl)
+						objs.Highlight = nil
+					end
 				end
 			end
-		end)
-		
+		end
+
+		-- 3. GC Protection: Clean selection if destroyed
+		if currentSelection and not currentSelection:IsDescendantOf(Workspace) then
+			currentSelection = nil
+			selectionSettingsFrame.Visible = false
+		end
+
 		-- Animate rainbow preview box if needed
 		if selectionSettingsFrame.Visible and currentSelection and targetSettings[currentSelection] then
 			if targetSettings[currentSelection].Rainbow then
@@ -2262,14 +2395,13 @@ task.spawn(function()
 			end
 		end
 		
-		-- Update status bar and perform sweep periodically
+		-- Periodic Status Bar Updates & Cleanup Sweep (every 5s)
 		updateCounter = updateCounter + 1
 		if updateCounter % 10 == 0 then
 			updateStatusBar()
 		end
 
 		if updateCounter % 50 == 0 then
-			-- Cleanup Sweep
 			for inst, _ in pairs(espObjects) do
 				if not inst:IsDescendantOf(Workspace) then
 					toggleEsp(inst, false)
