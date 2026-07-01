@@ -91,8 +91,8 @@ local SETTINGS = {
 	MaxWatchedFolders = 100,
 	VerticalOffset = 2,
 	MaxDistance = 2500,
-	MenuOpacity = 1.0,
-	EspOpacity = 1.0
+	MenuOpacity = 0.9,
+	EspOpacity = 0.9
 }
 
 -- Game-Specific Templates
