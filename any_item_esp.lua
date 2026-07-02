@@ -55,7 +55,9 @@ end
 function Janitor:Remove(name)
 	local task = self._tasks[name]
 	if task then
-		self:_cleanupTask(task[1], task[2])
+		pcall(function()
+			self:_cleanupTask(task[1], task[2])
+		end)
 		self._tasks[name] = nil
 	end
 end
@@ -78,7 +80,9 @@ end
 
 function Janitor:Cleanup()
 	for key, task in pairs(self._tasks) do
-		self:_cleanupTask(task[1], task[2])
+		pcall(function()
+			self:_cleanupTask(task[1], task[2])
+		end)
 	end
 	table.clear(self._tasks)
 end
@@ -1501,6 +1505,46 @@ addConnection(camera:GetPropertyChangedSignal("ViewportSize"):Connect(ensureWith
 
 -- ESP LOGIC
 
+local pendingModels = setmetatable({}, {__mode = "k"})
+
+local function watchModelForRootPart(model, callback)
+	local rootPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	if rootPart then
+		callback(rootPart)
+		return nil
+	end
+
+	local janitor = Janitor.new()
+	local resolved = false
+
+	local function check()
+		if resolved or not model:IsDescendantOf(Workspace) then return end
+		local rp = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+		if rp then
+			resolved = true
+			janitor:Cleanup()
+			callback(rp)
+		end
+	end
+
+	janitor:Add(model.ChildAdded:Connect(check))
+	janitor:Add(model:GetPropertyChangedSignal("PrimaryPart"):Connect(check))
+	janitor:Add(model.AncestryChanged:Connect(function()
+		if not model:IsDescendantOf(Workspace) then
+			janitor:Cleanup()
+		end
+	end))
+	janitor:Add(model.Destroying:Connect(function()
+		janitor:Cleanup()
+	end))
+
+	-- Safety sweeps
+	task.delay(0.2, check)
+	task.delay(0.5, check)
+	task.delay(2, check)
+	task.delay(5, check)
+end
+
 local function removeEsp(instance)
 	local objs = espObjects[instance]
 	if objs then
@@ -1511,9 +1555,15 @@ local function removeEsp(instance)
 		-- Return Highlight to pool if active
 		if objs.Highlight then
 			local hl = objs.Highlight
-			hl.Enabled = false
-			hl.Adornee = nil
-			table.insert(highlightPool, hl)
+			local success = pcall(function()
+				hl.Enabled = false
+				hl.Adornee = nil
+			end)
+			if success then
+				table.insert(highlightPool, hl)
+			else
+				pcall(function() hl:Destroy() end)
+			end
 			objs.Highlight = nil
 		end
 		
@@ -1579,7 +1629,7 @@ end
 
 local function createEsp(instance, source)
 	if not ALIVE then return end
-	if espObjects[instance] then return end
+	if espObjects[instance] or pendingModels[instance] then return end
 	
 	-- Object Cap Safety
 	if espObjectCount >= SETTINGS.MaxTotalObjects then return end
@@ -1593,6 +1643,17 @@ local function createEsp(instance, source)
 		rootPart = instance
 	end
 	
+	if instance:IsA("Model") and not rootPart then
+		pendingModels[instance] = true
+		watchModelForRootPart(instance, function(rp)
+			pendingModels[instance] = nil
+			if ALIVE and instance:IsDescendantOf(Workspace) then
+				createEsp(instance, source)
+			end
+		end)
+		return
+	end
+	
 	if rootPart then
 		local janitor = Janitor.new()
 		
@@ -1600,9 +1661,17 @@ local function createEsp(instance, source)
 		local bg = table.remove(billboardPool)
 		local tl
 		if bg then
-			tl = bg:FindFirstChildWhichIsA("TextLabel")
-			bg.Enabled = true
-		else
+			local success = pcall(function()
+				tl = bg:FindFirstChildWhichIsA("TextLabel")
+				bg.Enabled = true
+			end)
+			if not success or not tl then
+				pcall(function() bg:Destroy() end)
+				bg = nil
+			end
+		end
+		
+		if not bg then
 			bg = Instance.new("BillboardGui")
 			bg.Size = UDim2.new(0, 150, 0, 60)
 			bg.AlwaysOnTop = true
@@ -1641,10 +1710,16 @@ local function createEsp(instance, source)
 		
 		-- Return BillboardGui to pool on cleanup
 		janitor:Add(function()
-			bg.Enabled = false
-			bg.Adornee = nil
-			bg.Parent = nil
-			table.insert(billboardPool, bg)
+			local success = pcall(function()
+				bg.Enabled = false
+				bg.Adornee = nil
+				bg.Parent = nil
+			end)
+			if success then
+				table.insert(billboardPool, bg)
+			else
+				pcall(function() bg:Destroy() end)
+			end
 		end, nil, "Billboard")
 
 		local objs = { 
@@ -1669,13 +1744,13 @@ local function createEsp(instance, source)
 		end))
 		janitor:Add(instance.ChildAdded:Connect(function(child)
 			if child:IsA("ValueBase") then
-				janitor:Add(child.Changed:Connect(function() updateEspPropertyString(instance) end), "Disconnect", "Val_" .. child.Name)
+				janitor:Add(child.Changed:Connect(function() updateEspPropertyString(instance) end), "Disconnect", child)
 				updateEspPropertyString(instance)
 			end
 		end))
 		janitor:Add(instance.ChildRemoved:Connect(function(child)
 			if child:IsA("ValueBase") then
-				janitor:Remove("Val_" .. child.Name)
+				janitor:Remove(child)
 				updateEspPropertyString(instance)
 			end
 		end))
@@ -1683,7 +1758,7 @@ local function createEsp(instance, source)
 		-- Initial scan
 		for _, child in ipairs(instance:GetChildren()) do
 			if child:IsA("ValueBase") then
-				janitor:Add(child.Changed:Connect(function() updateEspPropertyString(instance) end), "Disconnect", "Val_" .. child.Name)
+				janitor:Add(child.Changed:Connect(function() updateEspPropertyString(instance) end), "Disconnect", child)
 			end
 		end
 		updateEspPropertyString(instance)
@@ -2486,9 +2561,15 @@ task.spawn(function()
 				-- Release highlight if it is out of range
 				local hl = objs.Highlight
 				if hl then
-					hl.Enabled = false
-					hl.Adornee = nil
-					table.insert(highlightPool, hl)
+					local success = pcall(function()
+						hl.Enabled = false
+						hl.Adornee = nil
+					end)
+					if success then
+						table.insert(highlightPool, hl)
+					else
+						pcall(function() hl:Destroy() end)
+					end
 					objs.Highlight = nil
 				end
 			end
@@ -2510,6 +2591,15 @@ task.spawn(function()
 					local hl = objs.Highlight
 					if not hl then
 						hl = table.remove(highlightPool)
+						if hl then
+							local success = pcall(function()
+								hl.Parent = PLAYER_GUI
+							end)
+							if not success then
+								pcall(function() hl:Destroy() end)
+								hl = nil
+							end
+						end
 						if not hl then
 							hl = Instance.new("Highlight")
 							hl.OutlineColor = Color3.new(1, 1, 1)
@@ -2536,9 +2626,15 @@ task.spawn(function()
 					-- Beyond max highlight count, release it
 					local hl = objs.Highlight
 					if hl then
-						hl.Enabled = false
-						hl.Adornee = nil
-						table.insert(highlightPool, hl)
+						local success = pcall(function()
+							hl.Enabled = false
+							hl.Adornee = nil
+						end)
+						if success then
+							table.insert(highlightPool, hl)
+						else
+							pcall(function() hl:Destroy() end)
+						end
 						objs.Highlight = nil
 					end
 				end
