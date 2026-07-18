@@ -96,7 +96,7 @@ local SETTINGS = {
 	VerticalOffset = 2,
 	MaxDistance = 2500,
 	MenuOpacity = 0.9,
-	EspOpacity = 0.9
+	EspOpacity = 0.5
 }
 
 -- Game-Specific Templates
